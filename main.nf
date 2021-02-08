@@ -2,8 +2,21 @@
 
 nextflow.enable.dsl=2
 
+params.reads='R{1,2}.fastq.gz'
+params.seqid=''
+params.conid=''
+
+params.min_len_contig='1000'
+params.evalue='0.1'
+params.outsuffix='results_'
+params.refseqsdir='Refseqs'
+
 
 process merge {
+  tag "${dir}/${name}"
+  publishDir "${dir}/${params.outsuffix}${name}", mode: 'copy'
+  stageInMode 'symlink'
+
   input:
   
   output:
@@ -18,6 +31,9 @@ process merge {
 
 
 process qc_post_merge {
+  tag "${dir}/${name}"
+  publishDir "${dir}/${params.outsuffix}${name}", mode: 'copy'
+
   input:
   
   output:
@@ -30,6 +46,9 @@ process qc_post_merge {
 
 
 process trim {
+  tag "${dir}/${name}"
+  publishDir "${dir}/${params.outsuffix}${name}", mode: 'copy'
+
   input:
   
   output:
@@ -52,6 +71,9 @@ process trim {
 
 
 process qc_post_trim {
+  tag "${dir}/${name}"
+  publishDir "${dir}/${params.outsuffix}${name}", mode: 'copy'
+
   input:
   
   output:
@@ -64,6 +86,9 @@ process qc_post_trim {
 
 
 process assemble {
+  tag "${dir}/${name}"
+  publishDir "${dir}/${params.outsuffix}${name}", mode: 'copy'
+
   input:
   
   output:
@@ -73,17 +98,17 @@ process assemble {
   spades.py \
     -s clean.fastq.gz \
     --only-assembler \
-    -t $OMP_NUM_THREADS -m $((SLURM_MEM_PER_NODE/1024)) \
+    -t ${task.cpus} -m $((SLURM_MEM_PER_NODE/1024)) \
     -o .
 
-  min_len_contig="1000"
-
-  awk -v min_len_contig=$min_len_contig -F _ '{ if( \$1 == ">NODE" ){ if( \$4 < min_len_contig ) {exit} } ; print }' contigs.fasta >contigs_sub.fasta
+  awk -v min_len_contig=${params.min_len_contig} -F _ '{ if( \$1 == ">NODE" ){ if( \$4 < min_len_contig ) {exit} } ; print }' contigs.fasta >contigs_sub.fasta
   """
 }
 
 
 process map_contigs {
+  tag "${dir}/${name}"
+
   input:
   
   output:
@@ -91,15 +116,19 @@ process map_contigs {
   script:
   """
   bbmap.sh \
-    in=clean.fastq.gz ref=contigs_sub.fasta \
+    in=clean.fastq.gz \
+    ref=contigs_sub.fasta \
     out=mapped_contigs_sub_unsorted.sam \
     k=13 maxindel=16000 ambig=random \
-    threads=$OMP_NUM_THREADS
+    threads=${task.cpus}
   """
 }
 
 
 process sam_post_map_contigs {
+  tag "${dir}/${name}"
+  publishDir "${dir}/${params.outsuffix}${name}", mode: 'copy'
+
   input:
   
   output:
@@ -125,6 +154,9 @@ process sam_post_map_contigs {
 
 
 process bcf_post_map_contigs {
+  tag "${dir}/${name}"
+  publishDir "${dir}/${params.outsuffix}${name}", mode: 'copy'
+
   input:
   
   output:
@@ -150,6 +182,9 @@ process bcf_post_map_contigs {
 
 
 process sam_pre_blast {
+  tag "${dir}/${name}"
+  publishDir "${dir}/${params.outsuffix}${name}", mode: 'copy'
+
   input:
   
   output:
@@ -164,6 +199,9 @@ process sam_pre_blast {
 
 
 process blast {
+  tag "${dir}/${name}"
+  publishDir "${dir}/${params.outsuffix}${name}", mode: 'copy'
+
   input:
   
   output:
@@ -171,65 +209,74 @@ process blast {
   script:
   """
   blastn \
-    -query ${prefix_contig}.fasta -db $blast_db_path \
-    -outfmt 11 -out blast_${prefix_contig}.asn \
+    -query \${prefix_contig}.fasta -db ${params.blast_db} \
+    -outfmt 11 -out blast_\${prefix_contig}.asn \
     -max_hsps 50 \
-    -word_size 28 -evalue 0.1 \
+    -word_size 28 -evalue ${params.evalue} \
     -reward 1 -penalty -2 \
-    -num_threads $OMP_NUM_THREADS
+    -num_threads ${task.cpus}
 
   blast_formatter \
-    -archive blast_${prefix_contig}.asn \
+    -archive blast_\${prefix_contig}.asn \
     -outfmt 5 \
-    -out blast_${prefix_contig}.xml
+    -out blast_\${prefix_contig}.xml
 
   blast_formatter \
-    -archive blast_${prefix_contig}.asn \
+    -archive blast_\${prefix_contig}.asn \
     -outfmt "6 qaccver saccver pident length evalue bitscore stitle" \
-    -out blast_unsort_${prefix_contig}.tsv
+    -out blast_unsort_\${prefix_contig}.tsv
  
-  sort -n -r -k 6 blast_unsort_${prefix_contig}.tsv >blast_${prefix_contig}.tsv
+  sort -n -r -k 6 blast_unsort_\${prefix_contig}.tsv >blast_\${prefix_contig}.tsv
  """
 }
 
 
 process seqfile {
+  tag "${seqid}"
+  publishDir "${params.refseqsdir}/", mode: 'copy', saveAs: { filename -> "Refseq_${seqid}.fasta" }
+
   input:
   
   output:
   
   script:
   """
+  seqid="${seqid}"
   blastdbcmd \
-    -db $blast_db_path -entry ${seqid%/rc} \
+    -db ${params.blast_db} -entry \${seqid%/rc} \
     -line_length 60 \
-    -out refseq_${MID}.fasta
+    -out refseq_\${MID}.fasta
 
-  sed -i '/^>/ s/ .*//g' refseq_${MID}.fasta
+  sed -i '/^>/ s/ .*//g' refseq_\${MID}.fasta
   """
 }
 
 
 process sam_post_seqfile {
+  tag "${seqid}"
+  publishDir "${params.refseqsdir}/", mode: 'copy', saveAs: { filename -> "Refseq_${seqid}.fasta" }
   input:
   
   output:
   
   script:
   """
-  if [ "${seqid: -3}" == "/rc" ] ; then
-  samtools faidx \
-	-i -o refseq_${MID}_rc.fasta \
-	refseq_${MID}.fasta ${seqid%/rc}
-   mv refseq_${MID}_rc.fasta refseq_${MID}.fasta
+  seqid="${seqid}"
+  if [ "\${seqid: -3}" == "/rc" ] ; then
+    samtools faidx \
+      -i -o refseq_\${MID}_revcom.fasta \
+      refseq_\${MID}.fasta \${seqid%/rc}
+    mv refseq_\${MID}_revcom.fasta refseq_\${MID}.fasta
   fi
 
-  sed -i '/^>/ s/ .*//g' refseq_${MID}.fasta
+  sed -i '/^>/ s/ .*//g' refseq_\${MID}.fasta
   """
 }
 
 
 process map_refs {
+  tag "${dir}/${name}_${seqid}"
+
   input:
   
   output:
@@ -237,16 +284,19 @@ process map_refs {
   script:
   """
   bbmap.sh \
-    in=clean.fastq.gz ref=refseq_${MID}.fasta \
-    out=mapped_refseq_${MID}_unsorted.sam \
+    in=clean.fastq.gz ref=refseq_\${MID}.fasta \
+    out=mapped_refseq_\${MID}_unsorted.sam \
     k=13 maxindel=16000 ambig=random \
-    path=ref_${MID} \
-    threads=$OMP_NUM_THREADS
+    path=ref_\${MID} \
+    threads=${task.cpus}
   """
 }
 
 
 process sam_post_map_refs {
+  tag "${dir}/${name}_${seqid}"
+  publishDir "${dir}/${params.outsuffix}${name}/${seqid}/", mode: 'copy'
+
   input:
   
   output:
@@ -254,24 +304,27 @@ process sam_post_map_refs {
   script:
   """
   samtools \
-    view -b -o mapped_refseq_${MID}_unsorted.bam \
-    mapped_refseq_${MID}_unsorted.sam
+    view -b -o mapped_refseq_\${MID}_unsorted.bam \
+    mapped_refseq_\${MID}_unsorted.sam
 
 samtools \
-    sort -o mapped_refseq_${MID}.bam \
-    mapped_refseq_${MID}_unsorted.bam
+    sort -o mapped_refseq_\${MID}.bam \
+    mapped_refseq_\${MID}_unsorted.bam
 
 samtools \
-    index mapped_refseq_${MID}.bam
+    index mapped_refseq_\${MID}.bam
 
 samtools \
-    depth -aa mapped_refseq_${MID}.bam \
-    >depth_refseq_${MID}.dat
+    depth -aa mapped_refseq_\${MID}.bam \
+    >depth_refseq_\${MID}.dat
   """
 }
 
 
 process bcf_post_map_refs {
+  tag "${dir}/${name}_${seqid}"
+  publishDir "${dir}/${params.outsuffix}${name}/${seqid}/", mode: 'copy'
+
   input:
   
   output:
@@ -279,19 +332,19 @@ process bcf_post_map_refs {
   script:
   """
   bcftools \
-    mpileup -Ou -f refseq_${MID}.fasta \
-    mapped_refseq_${MID}.bam \
+    mpileup -Ou -f refseq_\${MID}.fasta \
+    mapped_refseq_\${MID}.bam \
     | bcftools \
     call --ploidy 1 -mv -Oz \
-    -o calls_refseq_${MID}.vcf.gz
+    -o calls_refseq_\${MID}.vcf.gz
 
 bcftools \
-    tabix calls_refseq_${MID}.vcf.gz
+    tabix calls_refseq_\${MID}.vcf.gz
 
 bcftools \
-    consensus -f refseq_${MID}.fasta \
-    -o consensus_refseq_${MID}.fasta \
-    calls_refseq_${MID}.vcf.gz
+    consensus -f refseq_\${MID}.fasta \
+    -o consensus_refseq_\${MID}.fasta \
+    calls_refseq_\${MID}.vcf.gz
 
   """
 }
