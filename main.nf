@@ -9,7 +9,7 @@ params.conid=''
 params.min_len_contig='1000'
 params.evalue='0.1'
 params.outsuffix='results_'
-params.refseqsdir='Refseqs'
+params.refdir='Refseqs'
 
 
 process merge {
@@ -233,7 +233,7 @@ process blast {
 
 process seqfile {
   tag "${seqid}"
-  publishDir "${params.refseqsdir}/", mode: 'copy', saveAs: { filename -> "Refseq_${seqid}.fasta" }
+  publishDir "${params.refdir}/", mode: 'copy', saveAs: { filename -> "Refseq_${seqid}.fasta" }
 
   input:
   
@@ -254,7 +254,7 @@ process seqfile {
 
 process sam_post_seqfile {
   tag "${seqid}"
-  publishDir "${params.refseqsdir}/", mode: 'copy', saveAs: { filename -> "Refseq_${seqid}.fasta" }
+  publishDir "${params.refdir}/", mode: 'copy', saveAs: { filename -> "Refseq_${seqid}.fasta" }
   input:
   
   output:
