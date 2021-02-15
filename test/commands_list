@@ -1,0 +1,6 @@
+gunzip -k tinydb.fasta.gz
+singularity exec docker://quay.io/biocontainers/blast:2.7.1--h96bfa4b_5 makeblastdb -in tinydb.fasta -dbtype nucl -parse_seqids
+
+bash upstream_pipe.sh 1000
+bash map_align_pipe.sh CP023122.1 CP023131.1 XR_004087814.1 NC_026681.1
+# first two align with both NODE_1 and NODE_3
