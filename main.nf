@@ -205,185 +205,171 @@ process bcf_post_map_contigs {
 }
 
 
-process sam_pre_blast {
-  tag "${dir}/${name}"
-  publishDir "${dir}/${params.outsuffix}${name}", mode: 'copy'
-
-  input:
-  
-  output:
-  
-  script:
-  """
-  samtools faidx \
-    -i -o contigs_sub_revcom.fasta \
-    contigs_sub.fasta \$(grep '^>' contigs_sub.fasta | tr -d '>')
-  """
-}
-
-
 process blast {
   tag "${dir}/${name}"
   publishDir "${dir}/${params.outsuffix}${name}", mode: 'copy'
 
   input:
-  
+  tuple val(dir), val(name), path('contigs_sub.fasta')
+
   output:
-  
+  tuple val(dir), val(name), path('blast_contigs_sub.tsv'), emit: tsv
+  tuple val(dir), val(name), path('blast_contigs_sub.xml'), emit: xml
+
   script:
   """
   blastn \
-    -query \${prefix_contig}.fasta -db ${params.blast_db} \
-    -outfmt 11 -out blast_\${prefix_contig}.asn \
+    -query contigs_sub.fasta -db ${params.blast_db} \
+    -outfmt 11 -out blast_contigs_sub.asn \
     -max_hsps 50 \
     -word_size 28 -evalue ${params.evalue} \
     -reward 1 -penalty -2 \
     -num_threads ${task.cpus}
 
   blast_formatter \
-    -archive blast_\${prefix_contig}.asn \
+    -archive blast_contigs_sub.asn \
     -outfmt 5 \
-    -out blast_\${prefix_contig}.xml
+    -out blast_contigs_sub.xml
 
   blast_formatter \
-    -archive blast_\${prefix_contig}.asn \
+    -archive blast_contigs_sub.asn \
     -outfmt "6 qaccver saccver pident length evalue bitscore stitle" \
-    -out blast_unsort_\${prefix_contig}.tsv
+    -out blast_unsort_contigs_sub.tsv
  
-  sort -n -r -k 6 blast_unsort_\${prefix_contig}.tsv >blast_\${prefix_contig}.tsv
+  sort -n -r -k 6 blast_unsort_contigs_sub.tsv >blast_contigs_sub.tsv
  """
 }
 
 
-process seqfile {
-  tag "${seqid}"
-  publishDir "${params.refdir}/", mode: 'copy', saveAs: { filename -> "Refseq_${seqid}.fasta" }
+// process seqfile {
+//   tag "${seqid}"
+//   publishDir "${params.refdir}/", mode: 'copy', saveAs: { filename -> "Refseq_${seqid}.fasta" }
 
-  input:
+//   input:
   
-  output:
+//   output:
   
-  script:
-  """
-  seqid="${seqid}"
-  blastdbcmd \
-    -db ${params.blast_db} -entry \${seqid%/rc} \
-    -line_length 60 \
-    -out refseq_\${MID}.fasta
+//   script:
+//   """
+//   seqid="${seqid}"
+//   blastdbcmd \
+//     -db ${params.blast_db} -entry \${seqid%/rc} \
+//     -line_length 60 \
+//     -out refseq_\${MID}.fasta
 
-  sed -i '/^>/ s/ .*//g' refseq_\${MID}.fasta
-  """
-}
+//   sed -i '/^>/ s/ .*//g' refseq_\${MID}.fasta
+//   """
+// }
 
 
-process sam_post_seqfile {
-  tag "${seqid}"
-  publishDir "${params.refdir}/", mode: 'copy', saveAs: { filename -> "Refseq_${seqid}.fasta" }
-  input:
+// process sam_post_seqfile {
+//   tag "${seqid}"
+//   publishDir "${params.refdir}/", mode: 'copy', saveAs: { filename -> "Refseq_${seqid}.fasta" }
+//   input:
   
-  output:
+//   output:
   
-  script:
-  """
-  seqid="${seqid}"
-  if [ "\${seqid: -3}" == "/rc" ] ; then
-    samtools faidx \
-      -i -o refseq_\${MID}_revcom.fasta \
-      refseq_\${MID}.fasta \${seqid%/rc}
-    mv refseq_\${MID}_revcom.fasta refseq_\${MID}.fasta
-  fi
+//   script:
+//   """
+//   seqid="${seqid}"
+//   if [ "\${seqid: -3}" == "/rc" ] ; then
+//     samtools faidx \
+//       -i -o refseq_\${MID}_revcom.fasta \
+//       refseq_\${MID}.fasta \${seqid%/rc}
+//     mv refseq_\${MID}_revcom.fasta refseq_\${MID}.fasta
+//   fi
 
-  sed -i '/^>/ s/ .*//g' refseq_\${MID}.fasta
-  """
-}
+//   sed -i '/^>/ s/ .*//g' refseq_\${MID}.fasta
+//   """
+// }
 
 
-process map_refs {
-  tag "${dir}/${name}_${seqid}"
+// process map_refs {
+//   tag "${dir}/${name}_${seqid}"
 
-  input:
+//   input:
   
-  output:
+//   output:
   
-  script:
-  """
-  bbmap.sh \
-    in=clean.fastq.gz ref=refseq_\${MID}.fasta \
-    out=mapped_refseq_\${MID}_unsorted.sam \
-    k=13 maxindel=16000 ambig=random \
-    path=ref_\${MID} \
-    threads=${task.cpus}
-  """
-}
+//   script:
+//   """
+//   bbmap.sh \
+//     in=clean.fastq.gz ref=refseq_\${MID}.fasta \
+//     out=mapped_refseq_\${MID}_unsorted.sam \
+//     k=13 maxindel=16000 ambig=random \
+//     path=ref_\${MID} \
+//     threads=${task.cpus}
+//   """
+// }
 
 
-process sam_post_map_refs {
-  tag "${dir}/${name}_${seqid}"
-  publishDir "${dir}/${params.outsuffix}${name}/${seqid}/", mode: 'copy'
+// process sam_post_map_refs {
+//   tag "${dir}/${name}_${seqid}"
+//   publishDir "${dir}/${params.outsuffix}${name}/${seqid}/", mode: 'copy'
 
-  input:
+//   input:
   
-  output:
+//   output:
   
-  script:
-  """
-  samtools \
-    view -b -o mapped_refseq_\${MID}_unsorted.bam \
-    mapped_refseq_\${MID}_unsorted.sam
+//   script:
+//   """
+//   samtools \
+//     view -b -o mapped_refseq_\${MID}_unsorted.bam \
+//     mapped_refseq_\${MID}_unsorted.sam
 
-samtools \
-    sort -o mapped_refseq_\${MID}.bam \
-    mapped_refseq_\${MID}_unsorted.bam
+// samtools \
+//     sort -o mapped_refseq_\${MID}.bam \
+//     mapped_refseq_\${MID}_unsorted.bam
 
-samtools \
-    index mapped_refseq_\${MID}.bam
+// samtools \
+//     index mapped_refseq_\${MID}.bam
 
-samtools \
-    depth -aa mapped_refseq_\${MID}.bam \
-    >depth_refseq_\${MID}.dat
-  """
-}
+// samtools \
+//     depth -aa mapped_refseq_\${MID}.bam \
+//     >depth_refseq_\${MID}.dat
+//   """
+// }
 
 
-process bcf_post_map_refs {
-  tag "${dir}/${name}_${seqid}"
-  publishDir "${dir}/${params.outsuffix}${name}/${seqid}/", mode: 'copy'
+// process bcf_post_map_refs {
+//   tag "${dir}/${name}_${seqid}"
+//   publishDir "${dir}/${params.outsuffix}${name}/${seqid}/", mode: 'copy'
 
-  input:
+//   input:
   
-  output:
+//   output:
   
-  script:
-  """
-  bcftools \
-    mpileup -Ou -f refseq_\${MID}.fasta \
-    mapped_refseq_\${MID}.bam \
-    | bcftools \
-    call --ploidy 1 -mv -Oz \
-    -o calls_refseq_\${MID}.vcf.gz
+//   script:
+//   """
+//   bcftools \
+//     mpileup -Ou -f refseq_\${MID}.fasta \
+//     mapped_refseq_\${MID}.bam \
+//     | bcftools \
+//     call --ploidy 1 -mv -Oz \
+//     -o calls_refseq_\${MID}.vcf.gz
 
-bcftools \
-    tabix calls_refseq_\${MID}.vcf.gz
+// bcftools \
+//     tabix calls_refseq_\${MID}.vcf.gz
 
-bcftools \
-    consensus -f refseq_\${MID}.fasta \
-    -o consensus_refseq_\${MID}.fasta \
-    calls_refseq_\${MID}.vcf.gz
+// bcftools \
+//     consensus -f refseq_\${MID}.fasta \
+//     -o consensus_refseq_\${MID}.fasta \
+//     calls_refseq_\${MID}.vcf.gz
 
-  """
-}
+//   """
+// }
 
 
-process align {
-  input:
+// process align {
+//   input:
   
-  output:
+//   output:
   
-  script:
-  """
-  echo Dummy
-  """
-}
+//   script:
+//   """
+//   echo Dummy
+//   """
+// }
 
 
 
@@ -403,6 +389,8 @@ workflow {
   map_contigs(trim.out.join(assemble.out.sub, by: [0,1]))
   sam_post_map_contigs(map_contigs.out)
   bcf_post_map_contigs(sam_post_map_contigs.out.bam.join(assemble.out.sub, by: [0,1]))
+
+  blast(assemble.out.sub)
 
 
 }
