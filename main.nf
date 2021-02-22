@@ -18,13 +18,15 @@ process merge {
   stageInMode 'symlink'
 
   input:
-  
+  tuple val(dir), val(name), path(read1), path(read2)
+
   output:
-  
+  tuple val(dir), val(name), path('merged.fastq.gz')
+
   script:
   """
   bbmerge.sh \
-    in1=R1.fastq.gz in2=R2.fastq.gz \
+    in1=$read1 in2=$read2 \
     out=merged.fastq.gz
   """
 }
@@ -35,9 +37,11 @@ process qc_post_merge {
   publishDir "${dir}/${params.outsuffix}${name}", mode: 'copy'
 
   input:
-  
+  tuple val(dir), val(name), path('merged.fastq.gz')
+
   output:
-  
+  tuple val(dir), val(name), path('merged_fastqc.html'), path('merged_fastqc.zip')
+
   script:
   """
   fastqc merged.fastq.gz
@@ -50,9 +54,11 @@ process trim {
   publishDir "${dir}/${params.outsuffix}${name}", mode: 'copy'
 
   input:
-  
+  tuple val(dir), val(name), path('merged.fastq.gz')
+
   output:
-  
+  tuple val(dir), val(name), path('clean.fastq.gz')
+
   script:
   """
   bbduk.sh \
@@ -75,9 +81,11 @@ process qc_post_trim {
   publishDir "${dir}/${params.outsuffix}${name}", mode: 'copy'
 
   input:
-  
+  tuple val(dir), val(name), path('clean.fastq.gz')
+
   output:
-  
+  tuple val(dir), val(name), path('clean_fastqc.html'), path('clean_fastqc.zip')
+
   script:
   """
   fastqc clean.fastq.gz
@@ -90,18 +98,26 @@ process assemble {
   publishDir "${dir}/${params.outsuffix}${name}", mode: 'copy'
 
   input:
-  
+  tuple val(dir), val(name), path('clean.fastq.gz')
+
   output:
-  
+  tuple val(dir), val(name), path('contigs_sub.fasta'), emit: sub
+  tuple val(dir), val(name), path('contigs_ALL.fasta'), emit: all
+
   script:
   """
+  memory='${task.memory}'
+  memory=\${memory% *}
+
   spades.py \
     -s clean.fastq.gz \
     --only-assembler \
-    -t ${task.cpus} -m $((SLURM_MEM_PER_NODE/1024)) \
+    -t ${task.cpus} -m \${memory} \
     -o .
 
   awk -v min_len_contig=${params.min_len_contig} -F _ '{ if( \$1 == ">NODE" ){ if( \$4 < min_len_contig ) {exit} } ; print }' contigs.fasta >contigs_sub.fasta
+
+  mv contigs.fasta contigs_ALL.fasta
   """
 }
 
@@ -110,9 +126,11 @@ process map_contigs {
   tag "${dir}/${name}"
 
   input:
-  
+  tuple val(dir), val(name), path('clean.fastq.gz'), path('contigs_sub.fasta')
+
   output:
-  
+  tuple val(dir), val(name), path('mapped_contigs_sub_unsorted.sam')
+
   script:
   """
   bbmap.sh \
@@ -130,9 +148,12 @@ process sam_post_map_contigs {
   publishDir "${dir}/${params.outsuffix}${name}", mode: 'copy'
 
   input:
-  
+  tuple val(dir), val(name), path('mapped_contigs_sub_unsorted.sam')
+
   output:
-  
+  tuple val(dir), val(name), path('mapped_contigs_sub.bam'), path('mapped_contigs_sub.bam.bai'), emit: bam
+  tuple val(dir), val(name), path('depth_contigs_sub.dat'), emit: depth
+
   script:
   """
   samtools \
@@ -158,9 +179,12 @@ process bcf_post_map_contigs {
   publishDir "${dir}/${params.outsuffix}${name}", mode: 'copy'
 
   input:
-  
+  tuple val(dir), val(name), path('mapped_contigs_sub.bam'), path('mapped_contigs_sub.bam.bai'), path('contigs_sub.fasta')
+
   output:
-  
+  tuple val(dir), val(name), path('calls_contigs_sub.vcf.gz'), emit: call
+  tuple val(dir), val(name), path('consensus_contigs_sub.fasta'), emit: cons
+
   script:
   """
   bcftools \
@@ -350,7 +374,6 @@ bcftools \
 }
 
 
-
 process align {
   input:
   
@@ -363,8 +386,23 @@ process align {
 }
 
 
+
 workflow {
 
-  
+  read_ch = channel.fromFilePairs( params.reads )
+                   ..map{ it -> [ it[1][0].parent, it[0], it[1] ] }
+
+  merge(read_ch)
+  qc_post_merge(merge.out)
+
+  trim(merge.out)
+  qc_post_trim(trim.out)
+
+  assemble(trim.out)
+
+  map_contigs(trim.out.join(assemble.out.sub, by: [0,1]))
+  sam_post_map_contigs(map_contigs.out)
+  bcf_post_map_contigs(sam_post_map_contigs.out.bam.join(assemble.out.sub, by: [0,1]))
+
 
 }
