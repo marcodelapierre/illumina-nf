@@ -12,7 +12,7 @@ params.outsuffix='results_'
 params.refdir='Refseqs'
 
 
-process merge {
+process merge_reads {
   tag "${dir}/${name}"
   publishDir "${dir}/${params.outsuffix}${name}", mode: 'copy'
   stageInMode 'symlink'
@@ -376,12 +376,12 @@ process blast {
 workflow {
 
   read_ch = channel.fromFilePairs( params.reads )
-                   ..map{ it -> [ it[1][0].parent, it[0], it[1] ] }
+                   .map{ it -> [ it[1][0].parent, it[0], it[1][0], it[1][1] ] }
 
-  merge(read_ch)
-  qc_post_merge(merge.out)
+  merge_reads(read_ch)
+  qc_post_merge(merge_reads.out)
 
-  trim(merge.out)
+  trim(merge_reads.out)
   qc_post_trim(trim.out)
 
   assemble(trim.out)
