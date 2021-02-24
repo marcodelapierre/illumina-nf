@@ -3,13 +3,13 @@
 nextflow.enable.dsl=2
 
 params.reads='R{1,2}.fastq.gz'
-params.seqid=''
-params.conid=''
+params.seqs=''
+params.nodes=''
 
 params.min_len_contig='1000'
 params.evalue='0.1'
 params.outsuffix='results_'
-params.refdir='Refseqs'
+params.refdir='refseqs'
 
 
 process merge_reads {
@@ -241,25 +241,27 @@ process blast {
 }
 
 
-// process seqfile {
-//   tag "${seqid}"
-//   publishDir "${params.refdir}/", mode: 'copy', saveAs: { filename -> "Refseq_${seqid}.fasta" }
+process seqfile {
+  tag "${seqid}"
+  publishDir "${params.refdir}/", mode: 'copy', saveAs: { filename -> "refseq_${seqid}.fasta" }
 
-//   input:
-  
-//   output:
-  
-//   script:
-//   """
-//   seqid="${seqid}"
-//   blastdbcmd \
-//     -db ${params.blast_db} -entry \${seqid%/rc} \
-//     -line_length 60 \
-//     -out refseq_\${MID}.fasta
+  input:
+  val(seqid)
 
-//   sed -i '/^>/ s/ .*//g' refseq_\${MID}.fasta
-//   """
-// }
+  output:
+  tuple val(seqid), path('refseq.fasta')
+
+  script:
+  """
+  seqid="${seqid}"
+  blastdbcmd \
+    -db ${params.blast_db} -entry \${seqid} \
+    -line_length 60 \
+    -out refseq.fasta
+
+  sed -i '/^>/ s/ .*//g' refseq.fasta
+  """
+}
 
 
 // process sam_post_seqfile {
@@ -284,78 +286,99 @@ process blast {
 // }
 
 
-// process map_refs {
-//   tag "${dir}/${name}_${seqid}"
+process map_refs {
+  tag "${dir}/${name}_${seqid}"
 
+  input:
+  tuple val(dir), val(name), path('clean.fastq.gz'), val(seqid), path('refseq.fasta')
+
+  output:
+  tuple val(dir), val(name), val(seqid), path('mapped_refseq_unsorted.sam')
+  script:
+  """
+  bbmap.sh \
+    in=clean.fastq.gz \
+    ref=refseq.fasta \
+    out=mapped_refseq_unsorted.sam \
+    k=13 maxindel=16000 ambig=random \
+    threads=${task.cpus}
+  """
+}
+
+
+process sam_post_map_refs {
+  tag "${dir}/${name}_${seqid}"
+  publishDir "${dir}/${params.outsuffix}${name}/${seqid}/", mode: 'copy'
+//  publishDir "${dir}/${params.outsuffix}${name}/", mode: 'copy', saveAs: { filename -> filename.replaceFirst(/_refseq/,"_refseq_$seqid") }
+
+  input:
+  tuple val(dir), val(name), val(seqid), path('mapped_refseq_unsorted.sam')
+
+  output:
+// NOTE: val(seqid) first here, as needed by the cross operator
+  tuple val(seqid), val(dir), val(name), path('mapped_refseq.bam'), path('mapped_refseq.bam.bai'), emit: bam
+  tuple val(dir), val(name), val(seqid), path('depth_refseq.dat'), emit: depth
+
+  script:
+  """
+  samtools \
+    view -b -o mapped_refseq_unsorted.bam \
+    mapped_refseq_unsorted.sam
+
+samtools \
+    sort -o mapped_refseq.bam \
+    mapped_refseq_unsorted.bam
+
+samtools \
+    index mapped_refseq.bam
+
+samtools \
+    depth -aa mapped_refseq.bam \
+    >depth_refseq.dat
+  """
+}
+
+
+process bcf_post_map_refs {
+  tag "${dir}/${name}_${seqid}"
+  publishDir "${dir}/${params.outsuffix}${name}/${seqid}/", mode: 'copy'
+
+  input:
+  tuple val(dir), val(name), val(seqid), path('mapped_refseq.bam'), path('mapped_refseq.bam.bai'), path('refseq.fasta')
+  
+  output:
+  tuple val(dir), val(name), val(seqid), path('calls_refseq.vcf.gz'), emit: call
+  tuple val(dir), val(name), val(seqid), path('consensus_refseq.fasta'), emit: cons
+
+  script:
+  """
+  bcftools \
+    mpileup -Ou -f refseq.fasta \
+    mapped_refseq.bam \
+    | bcftools \
+    call --ploidy 1 -mv -Oz \
+    -o calls_refseq.vcf.gz
+
+bcftools \
+    tabix calls_refseq.vcf.gz
+
+bcftools \
+    consensus -f refseq.fasta \
+    -o consensus_refseq.fasta \
+    calls_refseq.vcf.gz
+
+  """
+}
+
+
+// process nodefile {
 //   input:
   
 //   output:
   
 //   script:
 //   """
-//   bbmap.sh \
-//     in=clean.fastq.gz ref=refseq_\${MID}.fasta \
-//     out=mapped_refseq_\${MID}_unsorted.sam \
-//     k=13 maxindel=16000 ambig=random \
-//     path=ref_\${MID} \
-//     threads=${task.cpus}
-//   """
-// }
-
-
-// process sam_post_map_refs {
-//   tag "${dir}/${name}_${seqid}"
-//   publishDir "${dir}/${params.outsuffix}${name}/${seqid}/", mode: 'copy'
-
-//   input:
-  
-//   output:
-  
-//   script:
-//   """
-//   samtools \
-//     view -b -o mapped_refseq_\${MID}_unsorted.bam \
-//     mapped_refseq_\${MID}_unsorted.sam
-
-// samtools \
-//     sort -o mapped_refseq_\${MID}.bam \
-//     mapped_refseq_\${MID}_unsorted.bam
-
-// samtools \
-//     index mapped_refseq_\${MID}.bam
-
-// samtools \
-//     depth -aa mapped_refseq_\${MID}.bam \
-//     >depth_refseq_\${MID}.dat
-//   """
-// }
-
-
-// process bcf_post_map_refs {
-//   tag "${dir}/${name}_${seqid}"
-//   publishDir "${dir}/${params.outsuffix}${name}/${seqid}/", mode: 'copy'
-
-//   input:
-  
-//   output:
-  
-//   script:
-//   """
-//   bcftools \
-//     mpileup -Ou -f refseq_\${MID}.fasta \
-//     mapped_refseq_\${MID}.bam \
-//     | bcftools \
-//     call --ploidy 1 -mv -Oz \
-//     -o calls_refseq_\${MID}.vcf.gz
-
-// bcftools \
-//     tabix calls_refseq_\${MID}.vcf.gz
-
-// bcftools \
-//     consensus -f refseq_\${MID}.fasta \
-//     -o consensus_refseq_\${MID}.fasta \
-//     calls_refseq_\${MID}.vcf.gz
-
+//   echo Dummy
 //   """
 // }
 
@@ -375,9 +398,15 @@ process blast {
 
 workflow {
 
+// inputs
   read_ch = channel.fromFilePairs( params.reads )
                    .map{ it -> [ it[1][0].parent, it[0], it[1][0], it[1][1] ] }
 
+  seqs_list = params.seqs?.tokenize(',')
+  seqs_ch = seqs_list ? channel.fromList( seqs_list ) : channel.empty()
+
+
+// upstream
   merge_reads(read_ch)
   qc_post_merge(merge_reads.out)
 
@@ -393,4 +422,14 @@ workflow {
   blast(assemble.out.sub)
 
 
+// downstream
+  seqfile(seqs_ch)
+
+  map_refs(trim.out.combine(seqfile.out))
+  sam_post_map_refs(map_refs.out)
+  bcf_post_map_refs( seqfile.out
+    .cross(sam_post_map_refs.out.bam)
+    .map{ zit -> [ zit[1][1], zit[1][2], zit[1][0], zit[1][3], zit[1][4], zit[0][1] ] } )
+
+// to be addded : nodefile, align
 }
