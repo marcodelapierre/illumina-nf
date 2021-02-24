@@ -266,7 +266,7 @@ process seqfile {
 
 // process sam_post_seqfile {
 //   tag "${seqid}"
-//   publishDir "${params.refdir}/", mode: 'copy', saveAs: { filename -> "Refseq_${seqid}.fasta" }
+//   publishDir "${params.refdir}/", mode: 'copy', saveAs: { filename -> "refseq_${seqid}.fasta" }
 //   input:
   
 //   output:
@@ -274,14 +274,14 @@ process seqfile {
 //   script:
 //   """
 //   seqid="${seqid}"
+//   seqid="\${seqid//_rc/\/rc}"
 //   if [ "\${seqid: -3}" == "/rc" ] ; then
 //     samtools faidx \
-//       -i -o refseq_\${MID}_revcom.fasta \
-//       refseq_\${MID}.fasta \${seqid%/rc}
-//     mv refseq_\${MID}_revcom.fasta refseq_\${MID}.fasta
+//       -i -o refseq_revcom.fasta \
+//       refseq.fasta \${seqid%/rc}
+//     mv refseq_revcom.fasta refseq.fasta
+//     sed -i '/^>/ s/ .*//g' refseq.fasta
 //   fi
-
-//   sed -i '/^>/ s/ .*//g' refseq_\${MID}.fasta
 //   """
 // }
 
