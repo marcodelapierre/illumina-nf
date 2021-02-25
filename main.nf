@@ -8,13 +8,13 @@ params.nodes=''
 
 params.min_len_contig='1000'
 params.evalue='0.1'
-params.outsuffix='results_'
+params.outprefix='results_'
 params.refdir='refseqs'
 
 
 process merge_reads {
   tag "${dir}/${name}"
-  publishDir "${dir}/${params.outsuffix}${name}", mode: 'copy'
+  publishDir "${dir}/${params.outprefix}${name}", mode: 'copy'
   stageInMode 'symlink'
 
   input:
@@ -34,7 +34,7 @@ process merge_reads {
 
 process qc_post_merge {
   tag "${dir}/${name}"
-  publishDir "${dir}/${params.outsuffix}${name}", mode: 'copy'
+  publishDir "${dir}/${params.outprefix}${name}", mode: 'copy'
 
   input:
   tuple val(dir), val(name), path('merged.fastq.gz')
@@ -51,7 +51,7 @@ process qc_post_merge {
 
 process trim {
   tag "${dir}/${name}"
-  publishDir "${dir}/${params.outsuffix}${name}", mode: 'copy'
+  publishDir "${dir}/${params.outprefix}${name}", mode: 'copy'
 
   input:
   tuple val(dir), val(name), path('merged.fastq.gz')
@@ -78,7 +78,7 @@ process trim {
 
 process qc_post_trim {
   tag "${dir}/${name}"
-  publishDir "${dir}/${params.outsuffix}${name}", mode: 'copy'
+  publishDir "${dir}/${params.outprefix}${name}", mode: 'copy'
 
   input:
   tuple val(dir), val(name), path('clean.fastq.gz')
@@ -95,7 +95,7 @@ process qc_post_trim {
 
 process assemble {
   tag "${dir}/${name}"
-  publishDir "${dir}/${params.outsuffix}${name}", mode: 'copy'
+  publishDir "${dir}/${params.outprefix}${name}", mode: 'copy'
 
   input:
   tuple val(dir), val(name), path('clean.fastq.gz')
@@ -145,7 +145,7 @@ process map_contigs {
 
 process sam_post_map_contigs {
   tag "${dir}/${name}"
-  publishDir "${dir}/${params.outsuffix}${name}", mode: 'copy'
+  publishDir "${dir}/${params.outprefix}${name}", mode: 'copy'
 
   input:
   tuple val(dir), val(name), path('mapped_contigs_sub_unsorted.sam')
@@ -176,7 +176,7 @@ process sam_post_map_contigs {
 
 process bcf_post_map_contigs {
   tag "${dir}/${name}"
-  publishDir "${dir}/${params.outsuffix}${name}", mode: 'copy'
+  publishDir "${dir}/${params.outprefix}${name}", mode: 'copy'
 
   input:
   tuple val(dir), val(name), path('mapped_contigs_sub.bam'), path('mapped_contigs_sub.bam.bai'), path('contigs_sub.fasta')
@@ -207,7 +207,7 @@ process bcf_post_map_contigs {
 
 process blast {
   tag "${dir}/${name}"
-  publishDir "${dir}/${params.outsuffix}${name}", mode: 'copy'
+  publishDir "${dir}/${params.outprefix}${name}", mode: 'copy'
 
   input:
   tuple val(dir), val(name), path('contigs_sub.fasta')
@@ -308,8 +308,8 @@ process map_refs {
 
 process sam_post_map_refs {
   tag "${dir}/${name}_${seqid}"
-  publishDir "${dir}/${params.outsuffix}${name}/${seqid}/", mode: 'copy'
-//  publishDir "${dir}/${params.outsuffix}${name}/", mode: 'copy', saveAs: { filename -> filename.replaceFirst(/_refseq/,"_refseq_$seqid") }
+  publishDir "${dir}/${params.outprefix}${name}/${seqid}/", mode: 'copy'
+//  publishDir "${dir}/${params.outprefix}${name}/", mode: 'copy', saveAs: { filename -> filename.replaceFirst(/_refseq/,"_refseq_$seqid") }
 
   input:
   tuple val(dir), val(name), val(seqid), path('mapped_refseq_unsorted.sam')
@@ -341,7 +341,7 @@ samtools \
 
 process bcf_post_map_refs {
   tag "${dir}/${name}_${seqid}"
-  publishDir "${dir}/${params.outsuffix}${name}/${seqid}/", mode: 'copy'
+  publishDir "${dir}/${params.outprefix}${name}/${seqid}/", mode: 'copy'
 
   input:
   tuple val(dir), val(name), val(seqid), path('mapped_refseq.bam'), path('mapped_refseq.bam.bai'), path('refseq.fasta')
