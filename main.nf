@@ -400,16 +400,22 @@ process contigfile {
 }
 
 
-// process align {
-//   input:
+//process align {
+//  input:
   
-//   output:
+//  output:
   
-//   script:
-//   """
-//   echo Dummy
-//   """
-// }
+//  script:
+//  """
+//  echo \$refseqid_list  >refseqs_contigs_labels.txt
+//  echo \$contigid_list >>refseqs_contigs_labels.txt
+//  cat \$consensus_refseq_list \$consensus_contig_list >input_align.fasta
+//  
+//  mafft-linsi \
+//    --thread ${task.cpus} \
+//    input_align.fasta >aligned.fasta
+//  """
+//}
 
 
 
