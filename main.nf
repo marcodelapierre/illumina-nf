@@ -235,7 +235,7 @@ process blast {
     -archive blast_contigs_sub.asn \
     -outfmt "6 qaccver saccver pident length evalue bitscore stitle" \
     -out blast_unsort_contigs_sub.tsv
- 
+
   sort -n -r -k 6 blast_unsort_contigs_sub.tsv >blast_contigs_sub.tsv
  """
 }
@@ -243,7 +243,6 @@ process blast {
 
 process seqfile {
   tag "${seqid}"
-  publishDir "${params.refdir}/", mode: 'copy', saveAs: { filename -> "refseq_${seqid}.fasta" }
 
   input:
   val(seqid)
@@ -254,8 +253,9 @@ process seqfile {
   script:
   """
   seqid="${seqid}"
+  seqid="\${seqid//_rc/\/rc}"
   blastdbcmd \
-    -db ${params.blast_db} -entry \${seqid} \
+    -db ${params.blast_db} -entry \${seqid%/rc} \
     -line_length 60 \
     -out refseq.fasta
 
@@ -264,26 +264,31 @@ process seqfile {
 }
 
 
-// process sam_post_seqfile {
-//   tag "${seqid}"
-//   publishDir "${params.refdir}/", mode: 'copy', saveAs: { filename -> "refseq_${seqid}.fasta" }
-//   input:
-  
-//   output:
-  
-//   script:
-//   """
-//   seqid="${seqid}"
-//   seqid="\${seqid//_rc/\/rc}"
-//   if [ "\${seqid: -3}" == "/rc" ] ; then
-//     samtools faidx \
-//       -i -o refseq_revcom.fasta \
-//       refseq.fasta \${seqid%/rc}
-//     mv refseq_revcom.fasta refseq.fasta
-//     sed -i '/^>/ s/ .*//g' refseq.fasta
-//   fi
-//   """
-// }
+process sam_post_seqfile {
+  tag "${seqid}"
+  publishDir "${params.refdir}/", mode: 'copy', saveAs: { filename -> "refseq_${seqid}.fasta" }
+
+  input:
+  tuple val(seqid), path('refseq.fasta')
+
+  output:
+  tuple val(seqid), path('refseq.fasta')
+
+  script:
+  """
+  seqid="${seqid}"
+  seqid="\${seqid//_rc/\/rc}"
+  if [ "\${seqid: -3}" == "/rc" ] ; then
+    samtools faidx \
+      -i -o refseq_revcom.fasta \
+      refseq.fasta \${seqid%/rc}
+
+    mv refseq_revcom.fasta refseq.fasta
+
+    sed -i '/^>/ s/ .*//g' refseq.fasta
+  fi
+  """
+}
 
 
 process map_refs {
@@ -379,6 +384,20 @@ bcftools \
 //   script:
 //   """
 //   echo Dummy
+
+//  idawk=${nodeid#NODE_}
+//  idawk=${idawk%/rc}
+//  awk -F _ -v id=$idawk '{ if(ok==1){if($1==">NODE"){exit}; print} ; if(ok!=1 && $1==">NODE" && $2==id){ok=1; print} }' consensus_contigs_sub.fasta >consensus_contig_${contig_num}.fasta
+//
+//  if [ "\${nodeid: -3}" == "/rc" ] ; then
+//   samtools faidx \
+//        -i -o consensus_contig_${contig_num}_rc.fasta \
+//        consensus_contig_${contig_num}.fasta $(grep "^>${id%/rc}_" consensus_contig_${contig_num}.fasta | tr -d '>')
+//   mv consensus_contig_${contig_num}_rc.fasta consensus_contig_${contig_num}.fasta
+//   rm consensus_contig_${contig_num}.fasta.fai
+//  fi
+
+
 //   """
 // }
 
@@ -405,6 +424,9 @@ workflow {
   seqs_list = params.seqs?.tokenize(',')
   seqs_ch = seqs_list ? channel.fromList( seqs_list ) : channel.empty()
 
+  nodes_list = params.nodes?.tokenize(',')
+  nodes_ch = nodes_list ? channel.fromList( nodes_list ) : channel.empty()
+
 
 // upstream
   merge_reads(read_ch)
@@ -424,12 +446,15 @@ workflow {
 
 // downstream
   seqfile(seqs_ch)
+  sam_post_seqfile(seqfile.out)
 
-  map_refs(trim.out.combine(seqfile.out))
+  map_refs(trim.out.combine(sam_post_seqfile.out))
   sam_post_map_refs(map_refs.out)
-  bcf_post_map_refs( seqfile.out
+  bcf_post_map_refs( sam_post_seqfile.out
     .cross(sam_post_map_refs.out.bam)
     .map{ zit -> [ zit[1][1], zit[1][2], zit[1][0], zit[1][3], zit[1][4], zit[0][1] ] } )
 
 // to be addded : nodefile, align
+  
+
 }
