@@ -7,7 +7,7 @@
 #SBATCH --no-requeue
 #SBATCH --export=none
 
-### NOTE: may note longer runtime above, if container images have yet to be pulled
+### NOTE: may need longer runtime above, if container images have yet to be pulled
 
 unset SBATCH_EXPORT
 
@@ -19,6 +19,7 @@ singularity exec docker://quay.io/biocontainers/blast:2.7.1--h96bfa4b_5 makeblas
 
 nextflow run main.nf \
   --reads='small_R{1,2}.fastq.gz' \
+  --seqs='CP023122.1,CP023131.1,XR_004087814.1,NC_026681.1' \
   --blast_db="$(pwd)/tinydb.fasta" \
   -profile test_zeus --slurm_account='pawsey0001' \
   -name nxf-${SLURM_JOB_ID}

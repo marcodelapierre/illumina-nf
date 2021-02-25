@@ -253,9 +253,8 @@ process seqfile {
   script:
   """
   seqid="${seqid}"
-  seqid="\${seqid//_rc/\/rc}"
   blastdbcmd \
-    -db ${params.blast_db} -entry \${seqid%/rc} \
+    -db ${params.blast_db} -entry \${seqid%_rc} \
     -line_length 60 \
     -out refseq.fasta
 
@@ -277,11 +276,10 @@ process sam_post_seqfile {
   script:
   """
   seqid="${seqid}"
-  seqid="\${seqid//_rc/\/rc}"
-  if [ "\${seqid: -3}" == "/rc" ] ; then
+  if [ "\${seqid: -3}" == "_rc" ] ; then
     samtools faidx \
       -i -o refseq_revcom.fasta \
-      refseq.fasta \${seqid%/rc}
+      refseq.fasta \${seqid%_rc}
 
     mv refseq_revcom.fasta refseq.fasta
 
@@ -388,16 +386,14 @@ process contigfile {
   script:
   """
   contigid="${contigid}"
-  contigid="\${contigid//_rc/\/rc}"
-
   idawk=\${contigid#NODE_}
-  idawk=\${idawk%/rc}
+  idawk=\${idawk%_rc}
   awk -F _ -v id=\$idawk '{ if(ok==1){if(\$1==">NODE"){exit}; print} ; if(ok!=1 && \$1==">NODE" && \$2==id){ok=1; print} }' consensus_contigs_sub.fasta >consensus_contig.fasta
 
-  if [ "\${contigid: -3}" == "/rc" ] ; then
+  if [ "\${contigid: -3}" == "_rc" ] ; then
     samtools faidx \
        -i -o consensus_contig_revcom.fasta \
-       consensus_contig.fasta \$(grep "^>\${contigid%/rc}_" consensus_contig.fasta | tr -d '>')
+       consensus_contig.fasta \$(grep "^>\${contigid%_rc}_" consensus_contig.fasta | tr -d '>')
     mv consensus_contig_revcom.fasta consensus_contig.fasta
   fi
   """
@@ -423,10 +419,12 @@ workflow {
   read_ch = channel.fromFilePairs( params.reads )
                    .map{ it -> [ it[1][0].parent, it[0], it[1][0], it[1][1] ] }
 
-  seqs_list = params.seqs?.tokenize(',')
+  seqs_list = params.seqs?.replaceAll(/\/rc/, "_rc")
+  seqs_list = seqs_list?.tokenize(',')
   seqs_ch = seqs_list ? channel.fromList( seqs_list ) : channel.empty()
 
-  contigs_list = params.contigs?.tokenize(',')
+  contigs_list = params.contigs?.replaceAll(/\/rc/, "_rc")
+  contigs_list = contigs_list?.tokenize(',')
   contigs_ch = contigs_list ? channel.fromList( contigs_list ) : channel.empty()
 
 
