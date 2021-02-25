@@ -20,5 +20,5 @@ singularity exec docker://quay.io/biocontainers/blast:2.7.1--h96bfa4b_5 makeblas
 nextflow run main.nf \
   --reads='small_R{1,2}.fastq.gz' \
   --blast_db="$(pwd)/tinydb.fasta" \
-  -profile zeus --slurm_account='pawsey0001' \
+  -profile test_zeus --slurm_account='pawsey0001' \
   -name nxf-${SLURM_JOB_ID}

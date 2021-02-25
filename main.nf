@@ -4,7 +4,7 @@ nextflow.enable.dsl=2
 
 params.reads='R{1,2}.fastq.gz'
 params.seqs=''
-params.nodes=''
+params.contigs=''
 
 params.min_len_contig='1000'
 params.evalue='0.1'
@@ -15,7 +15,7 @@ params.refdir='refseqs'
 process merge_reads {
   tag "${dir}/${name}"
   publishDir "${dir}/${params.outprefix}${name}", mode: 'copy'
-  stageInMode 'symlink'
+  stageInMode ( ( workflow.profile == 'zeus' ) ? 'copy' : 'symlink' )
 
   input:
   tuple val(dir), val(name), path(read1), path(read2)
@@ -292,7 +292,7 @@ process sam_post_seqfile {
 
 
 process map_refs {
-  tag "${dir}/${name}_${seqid}"
+  tag "${dir}/${name}/${seqid}"
 
   input:
   tuple val(dir), val(name), path('clean.fastq.gz'), val(seqid), path('refseq.fasta')
@@ -312,7 +312,7 @@ process map_refs {
 
 
 process sam_post_map_refs {
-  tag "${dir}/${name}_${seqid}"
+  tag "${dir}/${name}/${seqid}"
   publishDir "${dir}/${params.outprefix}${name}/${seqid}/", mode: 'copy'
 //  publishDir "${dir}/${params.outprefix}${name}/", mode: 'copy', saveAs: { filename -> filename.replaceFirst(/_refseq/,"_refseq_$seqid") }
 
@@ -330,14 +330,14 @@ process sam_post_map_refs {
     view -b -o mapped_refseq_unsorted.bam \
     mapped_refseq_unsorted.sam
 
-samtools \
+  samtools \
     sort -o mapped_refseq.bam \
     mapped_refseq_unsorted.bam
 
-samtools \
+  samtools \
     index mapped_refseq.bam
 
-samtools \
+  samtools \
     depth -aa mapped_refseq.bam \
     >depth_refseq.dat
   """
@@ -345,7 +345,7 @@ samtools \
 
 
 process bcf_post_map_refs {
-  tag "${dir}/${name}_${seqid}"
+  tag "${dir}/${name}/${seqid}"
   publishDir "${dir}/${params.outprefix}${name}/${seqid}/", mode: 'copy'
 
   input:
@@ -364,42 +364,44 @@ process bcf_post_map_refs {
     call --ploidy 1 -mv -Oz \
     -o calls_refseq.vcf.gz
 
-bcftools \
+  bcftools \
     tabix calls_refseq.vcf.gz
 
-bcftools \
+  bcftools \
     consensus -f refseq.fasta \
     -o consensus_refseq.fasta \
     calls_refseq.vcf.gz
-
   """
 }
 
 
-// process nodefile {
-//   input:
+process contigfile {
+  tag "${dir}/${name}_${contigid}"
+  publishDir "${dir}/${params.outprefix}${name}/", mode: 'copy', saveAs: { filename -> "consensus_contig_${contigid}.fasta" }
+
+  input:
+  tuple val(dir), val(name), path('consensus_contigs_sub.fasta'), val(contigid)
   
-//   output:
+  output:
+  tuple val(dir), val(name), val(contigid), path('consensus_contig.fasta')
   
-//   script:
-//   """
-//   echo Dummy
+  script:
+  """
+  contigid="${contigid}"
+  contigid="\${contigid//_rc/\/rc}"
 
-//  idawk=${nodeid#NODE_}
-//  idawk=${idawk%/rc}
-//  awk -F _ -v id=$idawk '{ if(ok==1){if($1==">NODE"){exit}; print} ; if(ok!=1 && $1==">NODE" && $2==id){ok=1; print} }' consensus_contigs_sub.fasta >consensus_contig_${contig_num}.fasta
-//
-//  if [ "\${nodeid: -3}" == "/rc" ] ; then
-//   samtools faidx \
-//        -i -o consensus_contig_${contig_num}_rc.fasta \
-//        consensus_contig_${contig_num}.fasta $(grep "^>${id%/rc}_" consensus_contig_${contig_num}.fasta | tr -d '>')
-//   mv consensus_contig_${contig_num}_rc.fasta consensus_contig_${contig_num}.fasta
-//   rm consensus_contig_${contig_num}.fasta.fai
-//  fi
+  idawk=\${contigid#NODE_}
+  idawk=\${idawk%/rc}
+  awk -F _ -v id=\$idawk '{ if(ok==1){if(\$1==">NODE"){exit}; print} ; if(ok!=1 && \$1==">NODE" && \$2==id){ok=1; print} }' consensus_contigs_sub.fasta >consensus_contig.fasta
 
-
-//   """
-// }
+  if [ "\${contigid: -3}" == "/rc" ] ; then
+    samtools faidx \
+       -i -o consensus_contig_revcom.fasta \
+       consensus_contig.fasta \$(grep "^>\${contigid%/rc}_" consensus_contig.fasta | tr -d '>')
+    mv consensus_contig_revcom.fasta consensus_contig.fasta
+  fi
+  """
+}
 
 
 // process align {
@@ -424,8 +426,8 @@ workflow {
   seqs_list = params.seqs?.tokenize(',')
   seqs_ch = seqs_list ? channel.fromList( seqs_list ) : channel.empty()
 
-  nodes_list = params.nodes?.tokenize(',')
-  nodes_ch = nodes_list ? channel.fromList( nodes_list ) : channel.empty()
+  contigs_list = params.contigs?.tokenize(',')
+  contigs_ch = contigs_list ? channel.fromList( contigs_list ) : channel.empty()
 
 
 // upstream
@@ -454,7 +456,9 @@ workflow {
     .cross(sam_post_map_refs.out.bam)
     .map{ zit -> [ zit[1][1], zit[1][2], zit[1][0], zit[1][3], zit[1][4], zit[0][1] ] } )
 
-// to be addded : nodefile, align
+  contigfile(bcf_post_map_contigs.out.cons.combine(contigs_ch))
+
+// to be addded : align
   
 
 }
