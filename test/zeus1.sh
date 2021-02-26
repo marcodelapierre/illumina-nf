@@ -21,5 +21,5 @@ nextflow run main.nf \
   --reads='small_R{1,2}.fastq.gz' \
   --seqs='CP023122.1,CP023131.1,XR_004087814.1,NC_026681.1' \
   --blast_db="$(pwd)/tinydb.fasta" \
-  -profile test_zeus --slurm_account='pawsey0001' \
+  -profile test_zeus \
   -name nxf-${SLURM_JOB_ID}
