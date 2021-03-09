@@ -445,7 +445,8 @@ workflow {
 
   map_contigs(trim.out.join(assemble.out.sub, by: [0,1]))
   sam_post_map_contigs(map_contigs.out)
-  bcf_post_map_contigs(sam_post_map_contigs.out.bam.join(assemble.out.sub, by: [0,1]))
+  bcf_post_map_contigs( sam_post_map_contigs.out.bam
+    .join(assemble.out.sub, by: [0,1]) )
 
   blast(assemble.out.sub)
 
