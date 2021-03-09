@@ -400,22 +400,27 @@ process contigfile {
 }
 
 
-//process align {
-//  input:
+process align {
+  tag "${dir}/${name}/${task.hash.substring(0,8)}"
+  publishDir "${dir}/${params.outprefix}${name}/align_${task.hash.substring(0,8)}/", mode: 'copy'
+
+  input:
+  tuple val(dir), val(name), val(seqids), path("consensus_refseq_*.fasta"), val(contigids), path("consensus_contig_*.fasta")
   
-//  output:
+  output:
+  tuple val(dir), val(name), path('labels_refseqs_contigs.txt'), path('aligned.fasta')
   
-//  script:
-//  """
-//  echo \$refseqid_list  >refseqs_contigs_labels.txt
-//  echo \$contigid_list >>refseqs_contigs_labels.txt
-//  cat \$consensus_refseq_list \$consensus_contig_list >input_align.fasta
-//  
-//  mafft-linsi \
-//    --thread ${task.cpus} \
-//    input_align.fasta >aligned.fasta
-//  """
-//}
+  script:
+  """
+  echo $seqids >labels_refseqs_contigs.txt
+  echo $contigids >>labels_refseqs_contigs.txt
+  cat consensus_refseq_*.fasta consensus_contig_*.fasta >input_align.fasta
+  
+  mafft-linsi \
+    --thread ${task.cpus} \
+    input_align.fasta >aligned.fasta
+  """
+}
 
 
 
@@ -463,7 +468,7 @@ workflow {
 
   contigfile(bcf_post_map_contigs.out.cons.combine(contigs_ch))
 
-// to be addded : align
-  
+  align( bcf_post_map_refs.out.cons.groupTuple(by: [0,1])
+    .join(contigfile.out.groupTuple(by: [0,1]), by: [0,1]) )
 
 }
