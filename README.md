@@ -1,10 +1,12 @@
-## UNDER CONSTRUCTION - Illumina pipeline for DPIRD - Nextflow edition
+## Illumina pipeline for DPIRD - Nextflow edition
 
 The pipeline requires [Nextflow](https://github.com/nextflow-io/nextflow) to run.  
 DSL2 syntax is used, so that Nextflow version `20.07.1` or higher is recommended.
 
 
 ### Pipeline
+
+This pipeline is the Nextflow translation of *Illumina Workflow 1* in the project https://github.com/pawseySC/dpird-mk:  
 
 Merge(+QC) -> Trim(+QC) -> De-novo assemble -> (Map contigs && Blast) -> Map ref. sequences\# -> Align\#
 
