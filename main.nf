@@ -265,7 +265,7 @@ process seqfile {
 
 process sam_post_seqfile {
   tag "${seqid}"
-  publishDir "${params.refdir}/", mode: 'copy', saveAs: { filename -> "refseq_${seqid}.fasta" }
+  publishDir "${params.refdir}", mode: 'copy', saveAs: { filename -> "refseq_${seqid}.fasta" }
 
   input:
   tuple val(seqid), path('refseq.fasta')
@@ -311,8 +311,8 @@ process map_refs {
 
 process sam_post_map_refs {
   tag "${dir}/${name}/${seqid}"
-  publishDir "${dir}/${params.outprefix}${name}/${seqid}/", mode: 'copy'
-//  publishDir "${dir}/${params.outprefix}${name}/", mode: 'copy', saveAs: { filename -> filename.replaceFirst(/_refseq/,"_refseq_$seqid") }
+  publishDir "${dir}/${params.outprefix}${name}/${seqid}", mode: 'copy'
+//  publishDir "${dir}/${params.outprefix}${name}", mode: 'copy', saveAs: { filename -> filename.replaceFirst(/_refseq/,"_refseq_$seqid") }
 
   input:
   tuple val(dir), val(name), val(seqid), path('mapped_refseq_unsorted.sam')
@@ -344,7 +344,7 @@ process sam_post_map_refs {
 
 process bcf_post_map_refs {
   tag "${dir}/${name}/${seqid}"
-  publishDir "${dir}/${params.outprefix}${name}/${seqid}/", mode: 'copy'
+  publishDir "${dir}/${params.outprefix}${name}/${seqid}", mode: 'copy'
 
   input:
   tuple val(dir), val(name), val(seqid), path('mapped_refseq.bam'), path('mapped_refseq.bam.bai'), path('refseq.fasta')
@@ -375,7 +375,7 @@ process bcf_post_map_refs {
 
 process contigfile {
   tag "${dir}/${name}_${contigid}"
-  publishDir "${dir}/${params.outprefix}${name}/", mode: 'copy', saveAs: { filename -> "consensus_contig_${contigid}.fasta" }
+  publishDir "${dir}/${params.outprefix}${name}", mode: 'copy', saveAs: { filename -> "consensus_contig_${contigid}.fasta" }
 
   input:
   tuple val(dir), val(name), path('consensus_contigs_sub.fasta'), val(contigid)
@@ -401,8 +401,8 @@ process contigfile {
 
 
 process align {
-  tag "${dir}/${name}/${task.hash.substring(0,8)}"
-  publishDir "${dir}/${params.outprefix}${name}/align_${task.hash.substring(0,8)}/", mode: 'copy'
+  tag "${dir}/${name}/${myhash}"
+  publishDir "${dir}/${params.outprefix}${name}", mode: 'copy', saveAs: { filename -> file(filename).getSimpleName()+"_$myhash."+file(filename).getExtension() }
 
   input:
   tuple val(dir), val(name), val(seqids), path("consensus_refseq_*.fasta"), val(contigids), path("consensus_contig_*.fasta")
@@ -411,6 +411,7 @@ process align {
   tuple val(dir), val(name), path('labels_refseqs_contigs.txt'), path('aligned.fasta')
   
   script:
+  myhash = (seqids+contigids).toString().digest('SHA-1').substring(0,8)  // an alternative is .md5()
   """
   echo $seqids >labels_refseqs_contigs.txt
   echo $contigids >>labels_refseqs_contigs.txt
