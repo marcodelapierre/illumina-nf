@@ -10,7 +10,7 @@ This pipeline is the Nextflow translation of *Illumina Workflow 1* in the projec
 
 Merge(+QC) -> Trim(+QC) -> De-novo assemble -> (Map contigs && Blast) -> Map ref. sequences\# -> Align\#
 
-\# Requires additional input in a subsequent run
+\# Require additional inputs in subsequent runs
 
 
 ### Basic usage
