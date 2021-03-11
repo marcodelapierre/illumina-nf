@@ -1,50 +1,60 @@
 #!/usr/bin/env nextflow
 
-nextflow.enable.dsl=2
+nextflow.enable.dsl = 2
 
-params.reads='R{1,2}.fastq.gz'
-params.seqs=''
-params.contigs=''
+params.reads = 'R{1,2}.fastq.gz'
+params.seqs = ''
+params.contigs = ''
+params.interleave = false
 
-params.min_len_contig='1000'
-params.evalue='0.1'
-params.outprefix='results_'
-params.refdir='refseqs'
+params.min_len_contig = '1000'
+params.evalue = '0.1'
+params.outprefix = 'results_'
+params.refdir = 'refseqs'
 
 
-process merge_reads {
+process merge_interl {
   tag "${dir}/${name}"
   publishDir "${dir}/${params.outprefix}${name}", mode: 'copy'
-  stageInMode ( ( workflow.profile == 'zeus' ) ? 'copy' : 'symlink' )
+  stageInMode { ( workflow.profile == 'zeus' ) ? 'copy' : 'symlink' }
 
   input:
   tuple val(dir), val(name), path(read1), path(read2)
 
   output:
-  tuple val(dir), val(name), path('merged.fastq.gz')
+  tuple val(dir), val(name), path{ params.interleave ? 'interleaved.fastq.gz' : 'merged.fastq.gz' }
 
   script:
-  """
-  bbmerge.sh \
-    in1=$read1 in2=$read2 \
-    out=merged.fastq.gz
-  """
+  if ( params.interleave )
+    """
+    reformat.sh \
+      in1=$read1 in2=$read2 \
+      out=interleaved.fastq.gz
+    """
+  else
+    """
+    bbmerge.sh \
+      in1=$read1 in2=$read2 \
+      out=merged.fastq.gz
+    """
 }
 
 
-process qc_post_merge {
+process qc_post_merge_interl {
   tag "${dir}/${name}"
   publishDir "${dir}/${params.outprefix}${name}", mode: 'copy'
 
   input:
-  tuple val(dir), val(name), path('merged.fastq.gz')
+  tuple val(dir), val(name), path(processed_fastq_gz)
 
   output:
-  tuple val(dir), val(name), path('merged_fastqc.html'), path('merged_fastqc.zip')
+  tuple val(dir), val(name), path(processed_fastq_gz.getSimpleName()+"_fastqc.html"), path(processed_fastq_gz.getSimpleName()+"_fastqc.zip")
+
+
 
   script:
   """
-  fastqc merged.fastq.gz
+  fastqc $processed_fastq_gz
   """
 }
 
@@ -54,22 +64,27 @@ process trim {
   publishDir "${dir}/${params.outprefix}${name}", mode: 'copy'
 
   input:
-  tuple val(dir), val(name), path('merged.fastq.gz')
+  tuple val(dir), val(name), path(processed_fastq_gz)
 
   output:
   tuple val(dir), val(name), path('clean.fastq.gz')
 
   script:
   """
+  if [ "${params.interleave}" == "true" ] ; then
+    INTERL="interleaved=t"
+  else
+    INTERL=""
+  fi
   bbduk.sh \
-    in=merged.fastq.gz \
+    in=$processed_fastq_gz \
     out=trimmed-partial.fastq.gz \
-    ref=adapters ktrim=r k=27 hdist=2 edist=0 mink=4
+    \$INTERL ref=adapters ktrim=r k=27 hdist=2 edist=0 mink=4
 
   bbduk.sh \
     in=trimmed-partial.fastq.gz \
     out=clean.fastq.gz \
-    ref=adapters ktrim=l k=27 hdist=2 edist=0 mink=4 \
+    \$INTERL ref=adapters ktrim=l k=27 hdist=2 edist=0 mink=4 \
     qtrim=rl trimq=13 \
     minlength=30
   """
@@ -106,11 +121,16 @@ process assemble {
 
   script:
   """
+  if [ "${params.interleave}" == "true" ] ; then
+    INTERL="--12"
+  else
+    INTERL="-s"
+  fi
   memory='${task.memory}'
   memory=\${memory% *}
 
   spades.py \
-    -s clean.fastq.gz \
+    \$INTERL clean.fastq.gz \
     --only-assembler \
     -t ${task.cpus} -m \${memory} \
     -o .
@@ -133,11 +153,16 @@ process map_contigs {
 
   script:
   """
+  if [ "${params.interleave}" == "true" ] ; then
+    INTERL="interleaved=t"
+  else
+    INTERL=""
+  fi
   bbmap.sh \
     in=clean.fastq.gz \
     ref=contigs_sub.fasta \
     out=mapped_contigs_sub_unsorted.sam \
-    k=13 maxindel=16000 ambig=random \
+    \$INTERL k=13 maxindel=16000 ambig=random \
     threads=${task.cpus}
   """
 }
@@ -299,11 +324,16 @@ process map_refs {
   tuple val(dir), val(name), val(seqid), path('mapped_refseq_unsorted.sam')
   script:
   """
+  if [ "${params.interleave}" == "true" ] ; then
+    INTERL="interleaved=t"
+  else
+    INTERL=""
+  fi
   bbmap.sh \
     in=clean.fastq.gz \
     ref=refseq.fasta \
     out=mapped_refseq_unsorted.sam \
-    k=13 maxindel=16000 ambig=random \
+    \$INTERL k=13 maxindel=16000 ambig=random \
     threads=${task.cpus}
   """
 }
@@ -443,10 +473,10 @@ workflow {
 
 
 // upstream
-  merge_reads(read_ch)
-  qc_post_merge(merge_reads.out)
+  merge_interl(read_ch)
+  qc_post_merge_interl(merge_interl.out)
 
-  trim(merge_reads.out)
+  trim(merge_interl.out)
   qc_post_trim(trim.out)
 
   assemble(trim.out)

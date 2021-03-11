@@ -6,10 +6,11 @@ DSL2 syntax is used, so that Nextflow version `20.07.1` or higher is recommended
 
 ### Pipeline
 
-This pipeline is the Nextflow translation of *Illumina Workflow 1* in the project https://github.com/pawseySC/dpird-mk:  
+This pipeline is the Nextflow translation of *Illumina Workflows 1 and 2* in the project https://github.com/pawseySC/dpird-mk:  
 
-Merge(+QC) -> Trim(+QC) -> De-novo assemble -> (Map contigs && Blast) -> Map ref. sequences\# -> Align\#
+Merge\*(+QC) -> Trim(+QC) -> De-novo assemble -> (Map contigs && Blast) -> Map ref. sequences\# -> Align\#
 
+\* Can be Interleave instead
 \# Require additional inputs in subsequent runs
 
 Note how some of these steps map to multiple Nextflow processes, to separate executions that use distinct packages (which is useful when using containerised software).
@@ -30,9 +31,11 @@ Note some syntax requirements:
 - use curly brackets to specify the wild character within the file pair, *e.g.* `{1,2}`;
 - the prefix to the wild character serves as the sample ID, *e.g.* `reads_`.
 
+Depending on the nature of the input files, if you need to *interleave* rather than to *merge* the read pairs you can achieve so by using the optional flag `--interleave`.
+
 Output files are stored in subdirectory(ies) with name `results_$sampleID`.  Reference sequences that you select for mapping and/or alignment are stored in the subdirectory `refseqs`.
 
-The flag `-profile` allows to select the appropriate profile for the machine in use, Zeus in this case.  The flag `--slurm_account` sets your Pawsey account to run on Zeus.  
+The flag `-profile` (note the single dash) allows to select the appropriate profile for the machine in use, Zeus in this case.  The flag `--slurm_account` sets your Pawsey account to run on Zeus.  
 
 After blasting and identifying reference sequences of interest, mapping of input reads against these sequences can be performed, providing the sequence IDs via the flag `--seqs` (case insensitive, comma separated list):
 
