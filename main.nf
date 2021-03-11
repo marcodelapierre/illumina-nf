@@ -254,7 +254,7 @@ process seqfile {
   """
   seqid="${seqid}"
   blastdbcmd \
-    -db ${params.blast_db} -entry \${seqid%_rc} \
+    -db ${params.blast_db} -entry \${seqid%_RC} \
     -line_length 60 \
     -out refseq.fasta
 
@@ -276,10 +276,10 @@ process sam_post_seqfile {
   script:
   """
   seqid="${seqid}"
-  if [ "\${seqid: -3}" == "_rc" ] ; then
+  if [ "\${seqid: -3}" == "_RC" ] ; then
     samtools faidx \
       -i -o refseq_revcom.fasta \
-      refseq.fasta \${seqid%_rc}
+      refseq.fasta \${seqid%_RC}
 
     mv refseq_revcom.fasta refseq.fasta
 
@@ -387,13 +387,13 @@ process contigfile {
   """
   contigid="${contigid}"
   idawk=\${contigid#NODE_}
-  idawk=\${idawk%_rc}
+  idawk=\${idawk%_RC}
   awk -F _ -v id=\$idawk '{ if(ok==1){if(\$1==">NODE"){exit}; print} ; if(ok!=1 && \$1==">NODE" && \$2==id){ok=1; print} }' consensus_contigs_sub.fasta >consensus_contig.fasta
 
-  if [ "\${contigid: -3}" == "_rc" ] ; then
+  if [ "\${contigid: -3}" == "_RC" ] ; then
     samtools faidx \
        -i -o consensus_contig_revcom.fasta \
-       consensus_contig.fasta \$(grep "^>\${contigid%_rc}_" consensus_contig.fasta | tr -d '>')
+       consensus_contig.fasta \$(grep "^>\${contigid%_RC}_" consensus_contig.fasta | tr -d '>')
     mv consensus_contig_revcom.fasta consensus_contig.fasta
   fi
   """
@@ -431,11 +431,13 @@ workflow {
   read_ch = channel.fromFilePairs( params.reads )
                    .map{ it -> [ it[1][0].parent, it[0], it[1][0], it[1][1] ] }
 
-  seqs_list = params.seqs?.replaceAll(/\/rc/, "_rc")
+  seqs_list = params.seqs?.toUpperCase()
+  seqs_list = seqs_list?.replaceAll(/\/RC/, "_RC")
   seqs_list = seqs_list?.tokenize(',')
   seqs_ch = seqs_list ? channel.fromList( seqs_list ) : channel.empty()
 
-  contigs_list = params.contigs?.replaceAll(/\/rc/, "_rc")
+  contigs_list = params.contigs?.toUpperCase()
+  contigs_list = contigs_list?.replaceAll(/\/RC/, "_RC")
   contigs_list = contigs_list?.tokenize(',')
   contigs_ch = contigs_list ? channel.fromList( contigs_list ) : channel.empty()
 
