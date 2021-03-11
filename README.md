@@ -12,6 +12,8 @@ Merge(+QC) -> Trim(+QC) -> De-novo assemble -> (Map contigs && Blast) -> Map ref
 
 \# Require additional inputs in subsequent runs
 
+Note how some of these steps map to multiple Nextflow processes, to separate executions that use distinct packages (which is useful when using containerised software).
+
 
 ### Basic usage
 
@@ -32,7 +34,7 @@ Output files are stored in subdirectory(ies) with name `results_$sampleID`.  Ref
 
 The flag `-profile` allows to select the appropriate profile for the machine in use, Zeus in this case.  The flag `--slurm_account` sets your Pawsey account to run on Zeus.  
 
-After blasting and identifying reference sequences of interest, mapping of input reads against these sequences can be performed, providing the sequence IDs via the flag `--seqs` (comma separated list):
+After blasting and identifying reference sequences of interest, mapping of input reads against these sequences can be performed, providing the sequence IDs via the flag `--seqs` (case insensitive, comma separated list):
 
 ```
 nextflow run marcodelapierre/illumina-nf \
@@ -41,7 +43,7 @@ nextflow run marcodelapierre/illumina-nf \
   -profile zeus --slurm_account='pawsey0001'
 ```
 
-Finally, after selecting contigs of interest from the assembly, alignment with the reference sequences can be performed, by additionally providing the contig IDs via the flag `--contigs` (comma separated list), *e.g.*:
+Finally, after selecting contigs of interest from the assembly, alignment with the reference sequences can be performed, by additionally providing the contig IDs via the flag `--contigs` (case insensitive, comma separated list), *e.g.*:
 
 ```
 nextflow run marcodelapierre/illumina-nf \
@@ -50,6 +52,8 @@ nextflow run marcodelapierre/illumina-nf \
   --contigs='NODE_1,NODE_234,NODE_56' \
   -profile zeus --slurm_account='pawsey0001'
 ```
+
+If you need to use the reverse-complement of a reference sequence or contig, just append the suffix `/rc` to its ID.
 
 
 ### Multiple inputs at once
