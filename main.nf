@@ -472,6 +472,7 @@ workflow {
   contigfile(bcf_post_map_contigs.out.cons.combine(contigs_ch))
 
   align( bcf_post_map_refs.out.cons.groupTuple(by: [0,1])
-    .join(contigfile.out.groupTuple(by: [0,1]), by: [0,1]) )
+    .join(contigfile.out.groupTuple(by: [0,1]), by: [0,1])
+    .map{ yit -> [ yit[0], yit[1], yit[2].sort(), yit[3].sort(), yit[4].sort(), yit[5].sort() ] } )
 
 }
