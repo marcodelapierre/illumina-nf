@@ -48,7 +48,7 @@ process qc_post_merge_interl {
   tuple val(dir), val(name), path(processed_fastq_gz)
 
   output:
-  tuple val(dir), val(name), path{ params.interleave ? 'interleaved_fastq.html' : 'merged_fastq.html' }, path{ params.interleave ? 'interleaved_fastq.zip' : 'merged_fastq.zip' }
+  tuple val(dir), val(name), path{ params.interleave ? 'interleaved_fastqc.html' : 'merged_fastqc.html' }, path{ params.interleave ? 'interleaved_fastqc.zip' : 'merged_fastqc.zip' }
 
   script:
   """
