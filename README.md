@@ -53,7 +53,7 @@ nextflow run marcodelapierre/illumina-nf \
   -profile zeus --slurm_account='pawsey0001'
 ```
 
-If you need to use the reverse-complement of a reference sequence or contig, just append the suffix `/rc` to its ID.
+If you need to use the reverse-complement of a reference sequence or contig, just append the suffix `/rc`, or `_rc`, to its ID.
 
 
 ### Multiple inputs at once
