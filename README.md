@@ -43,7 +43,7 @@ After blasting and identifying reference sequences of interest, mapping of input
 nextflow run marcodelapierre/illumina-nf \
   --reads='reads_{1,2}.fastq.gz' \
   --seqs='comma,separated,list,of,ids,from,blast' \
-  -profile zeus --slurm_account='pawsey0001'
+  -profile zeus --slurm_account='<YOUR PROJECT>'
 ```
 
 Finally, after selecting contigs of interest from the assembly, alignment with the reference sequences can be performed, by additionally providing the contig IDs via the flag `--contigs` (case insensitive, comma separated list), *e.g.*:
@@ -53,7 +53,7 @@ nextflow run marcodelapierre/illumina-nf \
   --reads='reads_{1,2}.fastq.gz' \
   --seqs='comma,separated,list,of,ids,from,blast' \
   --contigs='NODE_1,NODE_234,NODE_56' \
-  -profile zeus --slurm_account='pawsey0001'
+  -profile zeus --slurm_account='<YOUR PROJECT>'
 ```
 
 If you need to use the reverse-complement of a reference sequence or contig, just append the suffix `/rc`, or `_rc`, to its ID.
