@@ -21,7 +21,7 @@ Note how some of these steps map to multiple Nextflow processes, to separate exe
 ```
 nextflow run marcodelapierre/illumina-nf \
   --reads='reads_{1,2}.fastq.gz' \
-  -profile zeus --slurm_account='pawsey0001'
+  -profile zeus --slurm_account='<YOUR PROJECT>'
 ```
 
 The flag `--reads` specifies the name of the pair of input read files.  
