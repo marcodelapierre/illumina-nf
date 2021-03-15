@@ -31,7 +31,7 @@ Note some syntax requirements:
 - use curly brackets to specify the wild character within the file pair, *e.g.* `{1,2}`;
 - the prefix to the wild character serves as the sample ID, *e.g.* `reads_`.
 
-Depending on the nature of the input files, if you need to *interleave* rather than to *merge* the read pairs you can achieve so by using the optional flag `--interleave`.
+Depending on the nature of the input files, if you need to ***interleave*** rather than to *merge* the read pairs you can achieve so by using the optional flag `--interleave`.
 
 Output files are stored in subdirectory(ies) with name `results_$sampleID`.  Reference sequences that you select for mapping and/or alignment are stored in the subdirectory `refseqs`.
 
@@ -56,7 +56,7 @@ nextflow run marcodelapierre/illumina-nf \
   -profile zeus --slurm_account='<Your Pawsey Project>'
 ```
 
-If you need to use the reverse-complement of a reference sequence or contig, just append the suffix `/rc`, or `_rc`, to its ID.
+If you need to use the ***reverse-complement*** of a reference sequence or contig, just append the suffix `/rc`, or `_rc`, to its ID.
 
 
 ### Multiple inputs at once
