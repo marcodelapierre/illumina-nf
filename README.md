@@ -31,8 +31,6 @@ Note some syntax requirements:
 - use curly brackets to specify the wild character within the file pair, *e.g.* `{1,2}`;
 - the prefix to the wild character serves as the sample ID, *e.g.* `reads_`.
 
-Depending on the nature of the input files, if you need to ***interleave*** rather than to *merge* the read pairs you can achieve so by using the optional flag `--interleave`.
-
 Output files are stored in subdirectory(ies) with name `results_$sampleID`.  Reference sequences that you select for mapping and/or alignment are stored in the subdirectory `refseqs`.
 
 The flag `-profile` (note the single dash) allows to select the appropriate profile for the machine in use, Zeus in this case.  The flag `--slurm_account` sets your Pawsey account to run on Zeus.  
@@ -42,7 +40,7 @@ After blasting and identifying reference sequences of interest, mapping of input
 ```
 nextflow run marcodelapierre/illumina-nf \
   --reads='reads_{1,2}.fastq.gz' \
-  --seqs='comma,separated,list,of,ids,from,blast' \
+  --seqs='HG970869.1,JX173278.1,KF632713.1' \
   -profile zeus --slurm_account='<Your Pawsey Project>'
 ```
 
@@ -51,12 +49,23 @@ Finally, after selecting contigs of interest from the assembly, alignment with t
 ```
 nextflow run marcodelapierre/illumina-nf \
   --reads='reads_{1,2}.fastq.gz' \
-  --seqs='comma,separated,list,of,ids,from,blast' \
+  --seqs='HG970869.1,JX173278.1,KF632713.1' \
   --contigs='NODE_1,NODE_234,NODE_56' \
   -profile zeus --slurm_account='<Your Pawsey Project>'
 ```
 
-If you need to use the ***reverse-complement*** of a reference sequence or contig, just append the suffix `/rc`, or `_rc`, to its ID.
+
+### Pipeline variants
+
+1. Depending on the nature of the input files, if you need to ***interleave*** rather than to *merge* the read pairs you can achieve so by using the optional flag `--interleave`.
+
+2. If you need to use the ***reverse-complement*** of a reference sequence or contig, just append the suffix `/rc`, or `_rc`, to its ID, as in `HG970869.1/rc` or `NODE_1/rc`.
+
+
+### Optional parameters
+
+* Change *evalue* for blasting: `--evalue='0.1'`.
+* Change minimum length threshold for assembled contigs to be considered for blasting: `--min_len_contig='1000'`.
 
 
 ### Multiple inputs at once
@@ -66,12 +75,6 @@ The pipeline allows to feed in multiple datasets at once.  You can use input fil
 1. multiple input read pairs in the same directory, *e.g.* `sample1_R{1,2}.fq`, `sample2_R{1,2}.fq` and so on, use: `--reads='sample*{1,2}.fq'`;
 
 2. multiple read pairs in distinct directories, *e.g.* `sample1/R{1,2}.fq`, `sample2/R{1,2}.fq` and so on, use: `--reads='sample*/R{1,2}.fq'`.
-
-
-### Optional parameters
-
-* Change *evalue* for blasting: `--evalue='0.1'`.
-* Change minimum length threshold for assembled contigs to be considered for blasting: `--min_len_contig='1000'`.
 
 
 ### Requirements
