@@ -10,8 +10,8 @@ This pipeline is the Nextflow translation of *Illumina Workflows 1 and 2* in the
 
 Merge\*(+QC) -> Trim(+QC) -> De-novo assemble -> (Map contigs && Blast) -> Map ref. sequences\# -> Align\#
 
-\* Can be Interleave instead
-\# Require additional inputs in subsequent runs
+\* Can be Interleave instead  
+\# Require additional inputs in subsequent runs  
 
 Note how some of these steps map to multiple Nextflow processes, to separate executions that use distinct packages (which is useful when using containerised software).
 
