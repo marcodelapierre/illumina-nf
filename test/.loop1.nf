@@ -73,7 +73,7 @@ workflow {
 //  prep_seqs.out.view()
 
 
-  bulk = prep_seqs.out.toSortedList()
+  bulk = prep_seqs.out.toSortedList({ a, b -> a[0] <=> b[0] })
 //  bulk.view()
 
 // Nice test for reduce operator
