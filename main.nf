@@ -6,6 +6,8 @@ params.reads = 'R{1,2}.fastq.gz'
 params.seqs = ''
 params.contigs = ''
 params.interleave = false
+params.cascade = false
+params.cascade_align_seqs = ''
 
 params.min_len_contig = '1000'
 params.evalue = '0.1'
@@ -268,10 +270,10 @@ process seqfile {
   tag "${seqid}"
 
   input:
-  val(seqid)
+  tuple val(order), val(seqid)
 
   output:
-  tuple val(seqid), path('refseq.fasta')
+  tuple val(order), val(seqid), path('refseq.fasta')
 
   script:
   """
@@ -291,10 +293,10 @@ process sam_post_seqfile {
   publishDir "${params.refdir}", mode: 'copy', saveAs: { filename -> "refseq_${seqid}.fasta" }
 
   input:
-  tuple val(seqid), path('refseq.fasta')
+  tuple val(order), val(seqid), path('refseq.fasta')
 
   output:
-  tuple val(seqid), path('refseq.fasta')
+  tuple val(order), val(seqid), path('refseq.fasta')
 
   script:
   """
@@ -320,6 +322,7 @@ process map_refs {
 
   output:
   tuple val(dir), val(name), val(seqid), path('mapped_refseq_unsorted.sam')
+
   script:
   """
   if [ "${params.interleave}" == "true" ] ; then
@@ -337,9 +340,54 @@ process map_refs {
 }
 
 
+process map_refs_cascade_dirty {
+  tag "${dir}/${name}/${params.hash_cascade}"
+  publishDir "${dir}/${params.outprefix}${name}", mode: 'copy', pattern: '*labels_map_cascade.txt'
+
+  input:
+  tuple val(dir), val(name), path('clean.fastq.gz'), val(seqids), path('refseq*.fasta')
+
+  output:
+  tuple val(dir), val(name), val(seqids), path('mapped_refseq_unsorted*.sam'), emit: sam
+  tuple val(dir), val(name), val(seqids), path("${params.hash_cascade}labels_map_cascade.txt"), emit: labels
+
+  script:
+  //new_seqids = seqids.collect{ params.hash_cascade + '_' + it }
+  """
+  if [ "${params.interleave}" == "true" ] ; then
+    INTERL="interleaved=t"
+  else
+    INTERL=""
+  fi
+  echo $seqids >${params.hash_cascade}labels_map_cascade.txt
+  num=\$( ls refseq*.fasta | wc -w )
+
+  bbmap.sh \
+    in=clean.fastq.gz \
+    ref=refseq1.fasta \
+    out=mapped_refseq_unsorted1.sam \
+    outu=unmapped_refseq1.fastq.gz \
+    path=ref1 \
+    \$INTERL k=13 maxindel=16000 ambig=random \
+    threads=${task.cpus}
+
+  for i in \$( seq 2 \$num ) ; do
+    bbmap.sh \
+      in=unmapped_refseq\$((i-1)).fastq.gz \
+      ref=refseq\${i}.fasta \
+      out=mapped_refseq_unsorted\${i}.sam \
+      outu=unmapped_refseq\${i}.fastq.gz \
+      path=ref\${i} \
+      \$INTERL k=13 maxindel=16000 ambig=random \
+      threads=${task.cpus}
+  done
+  """
+}
+
+
 process sam_post_map_refs {
   tag "${dir}/${name}/${seqid}"
-  publishDir "${dir}/${params.outprefix}${name}/${seqid}", mode: 'copy'
+  publishDir "${dir}/${params.outprefix}${name}/${params.hash_cascade}${seqid}", mode: 'copy'
 //  publishDir "${dir}/${params.outprefix}${name}", mode: 'copy', saveAs: { filename -> filename.replaceFirst(/_refseq/,"_refseq_$seqid") }
 
   input:
@@ -372,7 +420,7 @@ process sam_post_map_refs {
 
 process bcf_post_map_refs {
   tag "${dir}/${name}/${seqid}"
-  publishDir "${dir}/${params.outprefix}${name}/${seqid}", mode: 'copy'
+  publishDir "${dir}/${params.outprefix}${name}/${params.hash_cascade}${seqid}", mode: 'copy'
 
   input:
   tuple val(dir), val(name), val(seqid), path('mapped_refseq.bam'), path('mapped_refseq.bam.bai'), path('refseq.fasta')
@@ -429,8 +477,8 @@ process contigfile {
 
 
 process align {
-  tag "${dir}/${name}/${myhash}"
-  publishDir "${dir}/${params.outprefix}${name}", mode: 'copy', saveAs: { filename -> file(filename).getSimpleName()+"_$myhash."+file(filename).getExtension() }
+  tag "${dir}/${name}/${hash_align}"
+  publishDir "${dir}/${params.outprefix}${name}", mode: 'copy', saveAs: { filename -> "${params.hash_cascade}"+file(filename).getSimpleName()+"_${hash_align}."+file(filename).getExtension() }
 
   input:
   tuple val(dir), val(name), val(seqids), path("consensus_refseq_*.fasta"), val(contigids), path("consensus_contig_*.fasta")
@@ -439,7 +487,7 @@ process align {
   tuple val(dir), val(name), path('labels_refseqs_contigs.txt'), path('aligned.fasta')
   
   script:
-  myhash = (seqids+contigids).toString().digest('SHA-1').substring(0,8)  // an alternative is .md5()
+  hash_align = (seqids+contigids).toString().digest('SHA-1').substring(0,8)  // an alternative is .md5()
   """
   echo $seqids >labels_refseqs_contigs.txt
   echo $contigids >>labels_refseqs_contigs.txt
@@ -462,7 +510,19 @@ workflow {
   seqs_list = params.seqs?.toUpperCase()
   seqs_list = seqs_list?.replaceAll(/\/RC/, "_RC")
   seqs_list = seqs_list?.tokenize(',')
-  seqs_ch = seqs_list ? channel.fromList( seqs_list ) : channel.empty()
+  seqs_list_ord = []
+  if ( seqs_list ) {
+    for (i = 0 ; i < seqs_list.size() ; i++) {
+      seqs_list_ord.push([ i, seqs_list[i] ])
+    }
+  }
+  if ( params.cascade ) {
+    seqs_ch = seqs_list_ord ? ( channel.fromList( seqs_list_ord ).map{ uit -> [ uit[0], uit[1]] } ) : channel.empty()
+    params.hash_cascade = seqs_list?.toString().digest('SHA-1').substring(0,8) + '_'  // an alternative is .md5()
+  } else {
+    seqs_ch = seqs_list_ord ? ( channel.fromList( seqs_list_ord ).map{ uit -> [ '0', uit[1]] } ) : channel.empty()
+    params.hash_cascade = ''
+  }
 
   contigs_list = params.contigs?.toUpperCase()
   contigs_list = contigs_list?.replaceAll(/\/RC/, "_RC")
@@ -491,16 +551,40 @@ workflow {
   seqfile(seqs_ch)
   sam_post_seqfile(seqfile.out)
 
-  map_refs(trim.out.combine(sam_post_seqfile.out))
-  sam_post_map_refs(map_refs.out)
-  bcf_post_map_refs( sam_post_seqfile.out
+  contigfile(bcf_post_map_contigs.out.cons.combine(contigs_ch))
+
+  if ( params.cascade ) {
+    map_refs_cascade_dirty( trim.out
+      .combine( sam_post_seqfile.out
+        .toSortedList({ a, b -> a[0] <=> b[0] })
+        .transpose()
+        .collate(3)
+        .map{ vit -> [ vit[1], vit[2] ] } ) )
+    sam_post_map_refs(map_refs_cascade_dirty.out.sam.transpose())
+  } else {
+    map_refs(trim.out.combine(sam_post_seqfile.out.map{ wit -> [ wit[1], wit[2] ] }))
+    sam_post_map_refs(map_refs.out)
+  }
+  bcf_post_map_refs( sam_post_seqfile.out.map{ xit -> [ xit[1], xit[2] ] }
     .cross(sam_post_map_refs.out.bam)
     .map{ zit -> [ zit[1][1], zit[1][2], zit[1][0], zit[1][3], zit[1][4], zit[0][1] ] } )
 
-  contigfile(bcf_post_map_contigs.out.cons.combine(contigs_ch))
+  if ( params.cascade ) {
+    cas_list = params.cascade_align_seqs?.toUpperCase()
+    cas_list = cas_list?.replaceAll(/\/RC/, "_RC")
+    cas_list = cas_list?.tokenize(',')
+    cas_ch = cas_list ? channel.fromList( cas_list ) : channel.empty()
 
-  align( bcf_post_map_refs.out.cons.groupTuple(by: [0,1])
-    .join(contigfile.out.groupTuple(by: [0,1]), by: [0,1])
-    .map{ yit -> [ yit[0], yit[1], yit[2].sort(), yit[3].sort(), yit[4].sort(), yit[5].sort() ] } )
+    align( cas_ch.cross( bcf_post_map_refs.out.cons
+      .map { jit -> [ jit[2], jit[0], jit[1], jit[3] ] } )
+      .map { kit -> [ kit[1][1], kit[1][2], kit[1][0], kit[1][3] ] }
+      .groupTuple(by: [0,1])
+      .join(contigfile.out.groupTuple(by: [0,1]), by: [0,1])
+      .map{ yit -> [ yit[0], yit[1], yit[2].sort(), yit[3].sort(), yit[4].sort(), yit[5].sort() ] } )
+  } else {
+    align( bcf_post_map_refs.out.cons.groupTuple(by: [0,1])
+      .join(contigfile.out.groupTuple(by: [0,1]), by: [0,1])
+      .map{ yit -> [ yit[0], yit[1], yit[2].sort(), yit[3].sort(), yit[4].sort(), yit[5].sort() ] } )
+  }
 
 }
