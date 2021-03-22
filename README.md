@@ -6,11 +6,12 @@ DSL2 syntax is used, so that Nextflow version `20.07.1` or higher is required.
 
 ### Pipeline
 
-This pipeline is the Nextflow translation of *Illumina Workflows 1 and 2* in the project https://github.com/pawseySC/dpird-mk:  
+This pipeline is the Nextflow translation of all *Illumina* workflows in the project https://github.com/pawseySC/dpird-mk:  
 
-Merge\*(+QC) -> Trim(+QC) -> De-novo assemble -> (Map contigs && Blast) -> Map ref. sequences\# -> Align\#
+Merge\*(+QC) -> Trim(+QC) -> De-novo assemble -> (Map contigs && Blast) -> Map ref. sequences\+\# -> Align\#
 
-\* Can be Interleave instead  
+\* Can be *Interleave* instead  
+\+ Can be performed in *cascade* mode
 \# Require additional inputs in subsequent runs  
 
 Note how some of these steps map to multiple Nextflow processes, to separate executions that use distinct packages (which is useful when using containerised software).
@@ -40,7 +41,7 @@ After blasting and identifying reference sequences of interest, mapping of input
 ```
 nextflow run marcodelapierre/illumina-nf \
   --reads='reads_{1,2}.fastq.gz' \
-  --seqs='HG970869.1,JX173278.1,KF632713.1' \
+  --seqs='HG970869.1,JX173278.1,HG970865.1,KF632713.1' \
   -profile zeus --slurm_account='<Your Pawsey Project>'
 ```
 
@@ -50,7 +51,7 @@ Finally, after selecting contigs of interest from the assembly, alignment with t
 nextflow run marcodelapierre/illumina-nf \
   --reads='reads_{1,2}.fastq.gz' \
   --seqs='HG970869.1,JX173278.1,KF632713.1' \
-  --contigs='NODE_1,NODE_234,NODE_56' \
+  --contigs='NODE_1,NODE_2,NODE_3' \
   -profile zeus --slurm_account='<Your Pawsey Project>'
 ```
 
@@ -60,6 +61,9 @@ nextflow run marcodelapierre/illumina-nf \
 1. Depending on the nature of the input files, if you need to ***interleave*** rather than to *merge* the read pairs you can achieve so by using the optional flag `--interleave`.
 
 2. If you need to use the ***reverse-complement*** of a reference sequence or contig, just append the suffix `/rc`, or `_rc`, to its ID, as in `HG970869.1/rc` or `NODE_1/rc`.
+
+3. By default, read mapping to reference sequences is performed independently for each sequence from the input list.  In alternative, a ***cascade mode*** is available for read mapping, where mapping is performed in an ordered, progressive way.  Here, the first read mapping is performed against the first sequence in the input list using all input reads;  then the second read mapping is performed against the second sequence, by considering only those reads that went unmapped in the previous mapping step;  the process continues until all input sequences are processed.  
+   To activate cascade mapping use the optional flag `--cascade`.  Note how the *ordered set* of input reference sequences is an information that needs to be retained at the alignment step, to uniquely identify the cascade mapping process.  For this reason, you need to provide two sets of reference sequences for the alignment step:  as an example, `--seqs='SEQ1,SEQ2,SEQ3,SEQ4'` has the full set of sequences from the cascade mapping step, whereas the new flag `--cascade_align_seqs='SEQ1,SEQ3'` has the subset of sequences that have been chosen for the alignment.
 
 
 ### Optional parameters
@@ -97,8 +101,6 @@ Reference data:
 
 ### Additional resources
 
-The `extra` directory contains example Slurm scripts, `job1.sh`,  `job2.sh` and `job3.sh`, to run on Zeus.  There is also a sample script `log.sh` that takes a run name as input and displays formatted runtime information.
+The `extra` directory contains example Slurm scripts, `job1.sh`, `job2.sh`, `job3.sh`, `job2_cascade.sh` and `job3_cascade.sh`, to run on Zeus.  There is also a sample script `log.sh` that takes a run name as input and displays formatted runtime information.
 
-The `test` directory contains a small input dataset and a launching script for quick testing of the pipeline, with total runtime around five minutes.
-
-
+The `test` directory contains a small input dataset and two launching scripts (based on Zeus) for quick testing of the pipeline, with total runtime below ten minutes.
