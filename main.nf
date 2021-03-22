@@ -340,16 +340,18 @@ process map_refs {
 }
 
 
-process map_refs_cascade_dirty {
-  tag "${dir}/${name}/${params.hash_cascade}"
-  publishDir "${dir}/${params.outprefix}${name}", mode: 'copy', pattern: '*labels_map_cascade.txt'
+// All cascade maps in one task, 
+// because DSL2 does not allow feedback loop processes
+process map_refs_cascade_bulk {
+  tag "${dir}/${name}${params.hash_cascade}"
+  publishDir "${dir}/${params.outprefix}${name}${params.hash_cascade}", mode: 'copy', pattern: 'labels_map_cascade.txt'
 
   input:
   tuple val(dir), val(name), path('clean.fastq.gz'), val(seqids), path('refseq*.fasta')
 
   output:
   tuple val(dir), val(name), val(seqids), path('mapped_refseq_unsorted*.sam'), emit: sam
-  tuple val(dir), val(name), val(seqids), path("${params.hash_cascade}labels_map_cascade.txt"), emit: labels
+  tuple val(dir), val(name), val(seqids), path('labels_map_cascade.txt'), emit: labels
 
   script:
   //new_seqids = seqids.collect{ params.hash_cascade + '_' + it }
@@ -359,7 +361,7 @@ process map_refs_cascade_dirty {
   else
     INTERL=""
   fi
-  echo $seqids >${params.hash_cascade}labels_map_cascade.txt
+  echo $seqids >labels_map_cascade.txt
   num=\$( ls refseq*.fasta | wc -w )
 
   bbmap.sh \
@@ -387,7 +389,7 @@ process map_refs_cascade_dirty {
 
 process sam_post_map_refs {
   tag "${dir}/${name}/${seqid}"
-  publishDir "${dir}/${params.outprefix}${name}/${params.hash_cascade}${seqid}", mode: 'copy'
+  publishDir "${dir}/${params.outprefix}${name}${params.hash_cascade}/${seqid}", mode: 'copy'
 //  publishDir "${dir}/${params.outprefix}${name}", mode: 'copy', saveAs: { filename -> filename.replaceFirst(/_refseq/,"_refseq_$seqid") }
 
   input:
@@ -420,7 +422,7 @@ process sam_post_map_refs {
 
 process bcf_post_map_refs {
   tag "${dir}/${name}/${seqid}"
-  publishDir "${dir}/${params.outprefix}${name}/${params.hash_cascade}${seqid}", mode: 'copy'
+  publishDir "${dir}/${params.outprefix}${name}${params.hash_cascade}/${seqid}", mode: 'copy'
 
   input:
   tuple val(dir), val(name), val(seqid), path('mapped_refseq.bam'), path('mapped_refseq.bam.bai'), path('refseq.fasta')
@@ -478,7 +480,7 @@ process contigfile {
 
 process align {
   tag "${dir}/${name}/${hash_align}"
-  publishDir "${dir}/${params.outprefix}${name}", mode: 'copy', saveAs: { filename -> "${params.hash_cascade}"+file(filename).getSimpleName()+"_${hash_align}."+file(filename).getExtension() }
+  publishDir "${dir}/${params.outprefix}${name}${params.hash_cascade}", mode: 'copy', saveAs: { filename -> file(filename).getSimpleName()+"_${hash_align}."+file(filename).getExtension() }
 
   input:
   tuple val(dir), val(name), val(seqids), path("consensus_refseq_*.fasta"), val(contigids), path("consensus_contig_*.fasta")
@@ -518,7 +520,7 @@ workflow {
   }
   if ( params.cascade ) {
     seqs_ch = seqs_list_ord ? ( channel.fromList( seqs_list_ord ).map{ uit -> [ uit[0], uit[1]] } ) : channel.empty()
-    params.hash_cascade = seqs_list?.toString().digest('SHA-1').substring(0,8) + '_'  // an alternative is .md5()
+    params.hash_cascade = '/cascade_map_' + seqs_list?.toString().digest('SHA-1').substring(0,8)  // an alternative is .md5()
   } else {
     seqs_ch = seqs_list_ord ? ( channel.fromList( seqs_list_ord ).map{ uit -> [ '0', uit[1]] } ) : channel.empty()
     params.hash_cascade = ''
@@ -554,13 +556,13 @@ workflow {
   contigfile(bcf_post_map_contigs.out.cons.combine(contigs_ch))
 
   if ( params.cascade ) {
-    map_refs_cascade_dirty( trim.out
+    map_refs_cascade_bulk( trim.out
       .combine( sam_post_seqfile.out
         .toSortedList({ a, b -> a[0] <=> b[0] })
         .transpose()
         .collate(3)
         .map{ vit -> [ vit[1], vit[2] ] } ) )
-    sam_post_map_refs(map_refs_cascade_dirty.out.sam.transpose())
+    sam_post_map_refs(map_refs_cascade_bulk.out.sam.transpose())
   } else {
     map_refs(trim.out.combine(sam_post_seqfile.out.map{ wit -> [ wit[1], wit[2] ] }))
     sam_post_map_refs(map_refs.out)
