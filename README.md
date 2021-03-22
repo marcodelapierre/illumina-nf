@@ -11,7 +11,7 @@ This pipeline is the Nextflow translation of all *Illumina* workflows in the pro
 Merge\*(+QC) -> Trim(+QC) -> De-novo assemble -> (Map contigs && Blast) -> Map ref. sequences\+\# -> Align\#
 
 \* Can be *Interleave* instead  
-\+ Can be performed in *cascade* mode
+\+ Can be performed in *cascade* mode  
 \# Require additional inputs in subsequent runs  
 
 Note how some of these steps map to multiple Nextflow processes, to separate executions that use distinct packages (which is useful when using containerised software).
