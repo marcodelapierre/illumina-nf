@@ -522,7 +522,7 @@ workflow {
     seqs_ch = seqs_list_ord ? ( channel.fromList( seqs_list_ord ).map{ uit -> [ uit[0], uit[1]] } ) : channel.empty()
     params.hash_cascade = '/cascade_map_' + seqs_list?.toString().digest('SHA-1').substring(0,8)  // an alternative is .md5()
   } else {
-    seqs_ch = seqs_list_ord ? ( channel.fromList( seqs_list_ord ).map{ uit -> [ '0', uit[1]] } ) : channel.empty()
+    seqs_ch = seqs_list_ord ? ( channel.fromList( seqs_list_ord ).map{ uit -> [ '0', uit[1] ] } ) : channel.empty()
     params.hash_cascade = ''
   }
 
