@@ -1,6 +1,6 @@
 #!/bin/bash -l
 
-#SBATCH --job-name=Nextflow-master-nanopore
+#SBATCH --job-name=Nextflow-master-illumina
 #SBATCH --account=pawsey0281
 #SBATCH --partition=longq
 #SBATCH --time=4-00:00:00
